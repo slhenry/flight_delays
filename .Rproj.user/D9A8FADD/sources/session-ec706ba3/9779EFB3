@@ -5,7 +5,7 @@
     "type": "r_markdown",
     "hash": "0",
     "contents": "",
-    "dirty": false,
+    "dirty": true,
     "created": 1686497721323.0,
     "source_on_save": false,
     "relative_order": 1,
@@ -14,15 +14,15 @@
         "chunk_output_type": "inline",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "15,0",
-        "scrollLine": "1"
+        "cursorPosition": "34,0",
+        "scrollLine": "26"
     },
     "folds": "",
     "lastKnownWriteTime": 5920580280048164967,
     "encoding": "",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1686505846183,
+    "last_content_update": 1686506880293,
     "read_only": false,
     "read_only_alternatives": []
 }

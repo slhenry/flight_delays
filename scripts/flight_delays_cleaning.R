@@ -32,7 +32,7 @@ flights_no_time_nas %>%
 flight_date <- flights_no_time_nas %>% 
   mutate(date = make_datetime(year, month, day), 
          time = make_datetime(year, month, day, hour, minute), .after = year) %>% 
-  select(., -c(year, month, day, time_hour, hour, minute))
+  select(., -c(year, time_hour, hour, minute))
 
 flight_time <- flight_date %>% 
   mutate(time = str_remove(time, "^2017-[0-9]{2}-[0-9]{2} "))
@@ -44,8 +44,8 @@ flight_time <- flight_time %>%
                                dep_delay == 0 ~ "on_time",
                                dep_delay < 10 ~ "<10 minutes delay",
                                dep_delay < 30 ~ "10-30 minutes delay",
-                               dep_delay < 60 ~ "30-60 minutes delay",
-                               dep_delay <120 ~ "1-2 hour delay",
+                               dep_delay <= 60 ~ "30-60 minutes delay",
+                               dep_delay <= 120 ~ "1-2 hour delay",
                                dep_delay > 120 ~ "more than 2 hour delay",
                                TRUE ~ "NA"), .after = dep_delay)
 
@@ -55,9 +55,9 @@ flight_time <- flight_time %>%
   mutate(delay_arr = case_when(arr_delay < 0 ~ "early",
                                arr_delay == 0 ~ "on_time",
                                arr_delay < 10 ~ "<10 minutes delay",
-                               arr_delay < 30 ~ "10-30 minutes delay",
-                               arr_delay < 60 ~ "30-60 minutes delay",
-                               arr_delay <120 ~ "1-2 hour delay",
+                               arr_delay <= 30 ~ "10-30 minutes delay",
+                               arr_delay <= 60 ~ "30-60 minutes delay",
+                               arr_delay <= 120 ~ "1-2 hour delay",
                                arr_delay > 120 ~ "more than 2 hour delay",
                                TRUE ~ "NA"), .after = arr_delay)
 

@@ -15,3 +15,22 @@ library(here)
 flights_clean <- read_csv(here("clean_data/flight_clean.csv"))
 ```
 
+
+
+```{r}
+flights_clean %>% 
+  group_by(delay_dep) %>% 
+  count() %>% 
+  ggplot(aes(x = delay_dep, y = n))+
+  geom_col()
+```
+
+
+```{r}
+flights_clean %>% 
+  group_by(month, delay_dep) %>% 
+  count() %>% 
+  ggplot(aes(x = month, y = n, fill = delay_dep))+
+  geom_col(position = "stack")
+```
+

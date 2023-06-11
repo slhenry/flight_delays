@@ -1,0 +1,10 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# ignore raw data file 
+raw_data/
+
+# ignore all csv files 
+*.csv
