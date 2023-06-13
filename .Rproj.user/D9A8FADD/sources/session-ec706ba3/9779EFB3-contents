@@ -9,28 +9,407 @@ output: html_notebook
 ```{r}
 library(tidyverse)
 library(here)
+library(GGally)
 ```
 
 ```{r}
 flights_clean <- read_csv(here("clean_data/flight_clean.csv"))
 ```
 
+## Flight delays
+
+1. How many flights are delayed?
+2. By how much are flights delayed?
+
 
 
 ```{r}
 flights_clean %>% 
+  filter(origin == "EWR") %>% 
   group_by(delay_dep) %>% 
   count() %>% 
-  ggplot(aes(x = delay_dep, y = n))+
+  ggplot()+
+  geom_col(aes(x = reorder(delay_dep, n), y = n), fill = "steelblue")+
+  coord_flip()+
+  theme_classic()+
+  labs(
+    x = "Flight delay",
+    y = "Number of flights",
+    title = "Number of flights delayed from Newark Airport in 2017"
+  )
+```
+
+```{r}
+flights_clean %>% 
+  group_by(delay_dep, origin) %>% 
+  count() %>% 
+  ggplot()+
+  geom_col(aes(x = reorder(delay_dep, n), y = n), fill = "steelblue")+
+  theme_classic()+
+  labs(
+    x = "Flight delay",
+    y = "Number of flights",
+    title = "Number of flights delayed from Newark Airport in 2017"
+  )+
+  facet_grid(~origin)
+```
+
+
+```{r}
+flights_clean %>% 
+  group_by(origin, delay_dep) %>% 
+  summarise(count = n(),
+            proportion = n()/nrow(flights_clean))
+```
+
+
+```{r}
+flights_clean %>% 
+  group_by(delay_dep, origin) %>% 
+  summarise(count = n(),
+            percentage = n()/nrow(flights_clean)*100) %>% 
+  ggplot()+
+  geom_col(aes(x = delay_dep, y = percentage))+
+  theme_classic()+
+  labs(
+    x = "Flight delay",
+    y = "Number of flights",
+    title = "Number of flights delayed from Newark Airport in 2017"
+  )+
+  facet_grid(~origin)
+```
+
+
+
+Delay proportion by month to check for seasonal variation
+
+```{r}
+flights_clean %>% 
+  filter(origin == "EWR") %>% 
+  group_by(month, delay_dep) %>% 
+  count() %>% 
+  ggplot(aes(x = month, y = n, fill = delay_dep))+
+  geom_col()
+```
+
+
+
+```{r}
+flight_clean %>% 
+  filter(origin == "EWR",
+         delay_dep != "Early or on-time") %>% 
+  drop_na(arr_delay) %>% 
+  group_by(month) %>% 
+  summarise(mean_delay = mean(dep_delay),
+            mean_arr_delay = mean(arr_delay),
+            count = n()) %>% 
+  ggplot(aes(x = month, y = mean_delay))+
   geom_col()
 ```
 
 
 ```{r}
 flights_clean %>% 
-  group_by(month, delay_dep) %>% 
+   filter(origin == "EWR") %>% 
+  drop_na(arr_delay) %>% 
+  group_by(month) %>% 
+  summarise(mean_delay = mean(dep_delay),
+            mean_arr_delay = mean(arr_delay),
+            count = n()) %>% 
+  ggplot(aes(x = month, y = mean_arr_delay, colour = count))+
+  geom_point(size = 3)
+```
+
+
+```{r}
+flight_clean %>% 
+  filter(origin == "EWR",
+         delay_dep != "Early or on-time") %>% 
+  group_by(month) %>% 
+  summarise(mean_delay = mean(dep_delay),
+            mean_arr_delay = mean(arr_delay, na.rm = TRUE),
+            count = n()) %>% 
+  ggplot(aes(x = month, y = mean_arr_delay))+
+  geom_col()
+```
+```{r}
+flights_clean %>% 
+  group_by(hour, delayed) %>% 
   count() %>% 
-  ggplot(aes(x = month, y = n, fill = delay_dep))+
-  geom_col(position = "stack")
+  ggplot(aes(x = hour, y = n, fill = delayed, position = "dodge"))+
+  geom_col(position = "dodge")
+```
+
+
+
+```{r}
+flight_clean %>% 
+  filter(origin == "EWR") %>% 
+  drop_na(delay_diff) %>% 
+  group_by(month) %>% 
+  summarise(month_diff = mean(delay_diff)) %>% 
+  ggplot(aes(x = month, y = month_diff))+
+  geom_col()
+```
+
+
+Filter out the days with very high delayed flights
+
+```{r}
+flights_clean %>% 
+  filter(delay_dep == "> 1hr delay") %>% 
+  group_by(date) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+
+
+```{r}
+flights_clean %>% 
+  group_by(origin) %>% 
+  count()
+```
+
+Airport comparisons 
+
+```{r}
+flight_clean %>% 
+  group_by(origin, delay_dep) %>% 
+  summarise(count = n()) %>%
+  ggplot()+
+  geom_col(aes(x = delay_dep, y = count))+
+  theme_classic()+
+  labs(
+    x = "Flight delay",
+    y = "Number of flights",
+    title = "Number of flights delayed from Newark Airport in 2017"
+  )+
+  facet_grid(~origin)
+```
+WEather correlations
+
+```{r}
+newark_flights_weather <- read_csv("clean_data/newark_flights_weather.csv")
+flights_weather <- read_csv("clean_data/flights_weather.csv")
+```
+
+```{r}
+newark_flights_weather %>% 
+  glimpse
+```
+
+
+
+
+```{r}
+newark_flights_weather %>% 
+  ggplot(aes(x = temp, y = delayed))+
+  geom_boxplot()
+```
+```{r message=FALSE}
+newark_flights_weather %>% 
+  select(delayed, wind_speed, wind_gust, temp, visib) %>% 
+  ggpairs()
+```
+
+```{r}
+weather_clean %>% 
+  filter(time_hour == "2017-01-01 09:00:00")
+```
+
+
+```{r}
+flights_weather %>% 
+  glimpse()
+```
+```{r}
+flights_weather <- flights_weather %>% 
+  mutate(wind_class = case_when(wind_speed <= 24 ~"Breeze",
+                                wind_speed <= 31 ~"Strong breeze",
+                                wind_speed <= 38 ~ "Near gale",
+                                wind_speed > 38 ~ "Gale"),
+         .after = wind_speed)
+```
+
+
+
+```{r}
+group1<- flights_weather %>% 
+  select(month, day, hour, minute, dep_delay, delay_dep, delayed, delayed_1hr_more)
+```
+
+
+```{r}
+group2 <- flights_weather %>% 
+  select(delayed, delayed_1hr_more, arr_time, arr_delay, delay_diff, carrier, origin, time_hour, distance)
+```
+
+```{r}
+group3 <- flights_weather %>% 
+  select(delayed, delayed_1hr_more, delay_dep, air_time, distance, wind_class, temp, wind_dir, wind_speed, visib )
+```
+
+```{r message=FALSE}
+group1 %>% 
+  ggpairs()
+```
+
+```{r message=FALSE}
+group2 %>% 
+  ggpairs()
+```
+
+```{r message=FALSE}
+group3 %>% 
+  ggpairs()
+```
+
+```{r}
+flights_weather %>% 
+  group_by(delayed_1hr_more) %>% 
+  count()
+```
+
+
+
+wind speed 
+
+```{r}
+weather_clean %>% 
+  summary
+```
+
+```{r}
+flights_weather <- flights_weather %>% 
+  mutate(wind_class = case_when(wind_speed <= 24 ~"Breeze",
+                                wind_speed <= 31 ~"Strong breeze",
+                                wind_speed <= 38 ~ "Near gale",
+                                wind_speed > 38 ~ "Gale"),
+         .after = wind_speed)
+```
+
+```{r}
+flights_weather %>% 
+  filter(is.na(wind_class))
+```
+
+# plane data for delays too
+
+```{r}
+flights_weather_planes <- read_csv("clean_data/flights_weather_planes.csv")
+```
+
+```{r}
+flights_weather_planes %>% 
+  
+```
+
+```{r}
+group4 <- flights_weather_planes %>% 
+  select(delayed, delayed_1hr_more, year.y, type, engine, engines, seats, speed)
+```
+
+```{r}
+flights_weather_planes %>% 
+  group_by(manufacturer) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+
+```{r}
+flights_weather_planes %>% 
+  group_by(model) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+
+
+```{r}
+group4 %>% 
+  ggpairs()
+```
+
+# airlines data
+
+```{r}
+flights_weather_planes_airlines <- read_csv("clean_data/flights_weather_planes_airlines.csv")
+```
+
+
+```{r}
+flights_weather_planes_airlines %>% 
+  glimpse()
+```
+
+```{r}
+group5 <- flights_weather_planes_airlines %>% 
+  select(delayed, delayed_1hr_more, delay_dep, name, engine, seats, type, year.y) 
+```
+
+```{r message=FALSE}
+group5 %>% 
+  ggpairs()
+```
+```{r}
+flights_weather_planes_airlines <- flights_weather_planes_airlines %>% 
+  mutate(delayed = as.integer(delayed),
+         delayed_1hr_more = as.integer(delayed_1hr_more))
+```
+
+
+
+```{r}
+flights_weather_planes_airlines %>% 
+  group_by(name) %>% 
+  summarise(count = n(),
+            mean_delay = mean(dep_delay),
+            perc_flights_delayed = sum(delayed)/count*100,
+            perc_flights_delayed_hr = sum(delayed_1hr_more)/count*100) %>% 
+  arrange(desc(perc_flights_delayed)) 
+```
+
+```{r}
+flights_weather_planes_airlines %>% 
+  group_by(model) %>% 
+  summarise(count = n(),
+            mean_delay = mean(dep_delay),
+            delay_per_plane = count/mean_delay,
+            perc_flights_delayed = sum(delayed)/count*100,
+            perc_flights_delayed_hr = sum(delayed_1hr_more)/count*100) %>% 
+  arrange(desc(perc_flights_delayed_hr)) 
+```
+
+```{r}
+flights_weather_planes_airlines %>% 
+  group_by(manufacturer) %>% 
+  summarise(count = n(),
+            mean_delay = mean(dep_delay),
+            perc_flights_delayed = sum(delayed)/count*100,
+            perc_flights_delayed_hr = sum(delayed_1hr_more)/count*100) %>% 
+  arrange(desc(perc_flights_delayed)) 
+```
+
+```{r}
+delay_table <- flights_weather_planes_airlines %>% 
+  group_by(time_hour) %>% 
+  summarise(count = n(),
+            flights_delayed = sum(delayed),
+            flights_delayed_more1hr = sum(delayed_1hr_more),
+            perc_delayed = flights_delayed/count*100,
+            perc_delay_more_1hr = sum(delayed_1hr_more)/count*100) 
+            
+```
+
+join delay_table to weather
+
+```{r}
+delay_table_weather <- delay_table %>% 
+  left_join(weather_clean, by = "time_hour")
+```
+
+```{r message=FALSE}
+delay_table_weather %>% 
+  select(time_hour, count, perc_delayed, perc_delay_more_1hr, origin, temp, wind_speed, visib, wind_dir, wind_gust) %>% 
+  ggpairs()
 ```
 
