@@ -264,6 +264,13 @@ group3 %>%
   ggpairs()
 ```
 
+```{r}
+flights_weather %>% 
+  group_by(delayed_1hr_more) %>% 
+  count()
+```
+
+
 
 wind speed 
 
@@ -284,5 +291,125 @@ flights_weather <- flights_weather %>%
 ```{r}
 flights_weather %>% 
   filter(is.na(wind_class))
+```
+
+# plane data for delays too
+
+```{r}
+flights_weather_planes <- read_csv("clean_data/flights_weather_planes.csv")
+```
+
+```{r}
+flights_weather_planes %>% 
+  
+```
+
+```{r}
+group4 <- flights_weather_planes %>% 
+  select(delayed, delayed_1hr_more, year.y, type, engine, engines, seats, speed)
+```
+
+```{r}
+flights_weather_planes %>% 
+  group_by(manufacturer) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+
+```{r}
+flights_weather_planes %>% 
+  group_by(model) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+
+
+```{r}
+group4 %>% 
+  ggpairs()
+```
+
+# airlines data
+
+```{r}
+flights_weather_planes_airlines <- read_csv("clean_data/flights_weather_planes_airlines.csv")
+```
+
+
+```{r}
+flights_weather_planes_airlines %>% 
+  glimpse()
+```
+
+```{r}
+group5 <- flights_weather_planes_airlines %>% 
+  select(delayed, delayed_1hr_more, delay_dep, name, engine, seats, type, year.y) 
+```
+
+```{r message=FALSE}
+group5 %>% 
+  ggpairs()
+```
+```{r}
+flights_weather_planes_airlines <- flights_weather_planes_airlines %>% 
+  mutate(delayed = as.integer(delayed),
+         delayed_1hr_more = as.integer(delayed_1hr_more))
+```
+
+
+
+```{r}
+flights_weather_planes_airlines %>% 
+  group_by(name) %>% 
+  summarise(count = n(),
+            mean_delay = mean(dep_delay),
+            perc_flights_delayed = sum(delayed)/count*100,
+            perc_flights_delayed_hr = sum(delayed_1hr_more)/count*100) %>% 
+  arrange(desc(perc_flights_delayed)) 
+```
+
+```{r}
+flights_weather_planes_airlines %>% 
+  group_by(model) %>% 
+  summarise(count = n(),
+            mean_delay = mean(dep_delay),
+            delay_per_plane = count/mean_delay,
+            perc_flights_delayed = sum(delayed)/count*100,
+            perc_flights_delayed_hr = sum(delayed_1hr_more)/count*100) %>% 
+  arrange(desc(perc_flights_delayed_hr)) 
+```
+
+```{r}
+flights_weather_planes_airlines %>% 
+  group_by(manufacturer) %>% 
+  summarise(count = n(),
+            mean_delay = mean(dep_delay),
+            perc_flights_delayed = sum(delayed)/count*100,
+            perc_flights_delayed_hr = sum(delayed_1hr_more)/count*100) %>% 
+  arrange(desc(perc_flights_delayed)) 
+```
+
+```{r}
+delay_table <- flights_weather_planes_airlines %>% 
+  group_by(time_hour) %>% 
+  summarise(count = n(),
+            flights_delayed = sum(delayed),
+            flights_delayed_more1hr = sum(delayed_1hr_more),
+            perc_delayed = flights_delayed/count*100,
+            perc_delay_more_1hr = sum(delayed_1hr_more)/count*100) 
+            
+```
+
+join delay_table to weather
+
+```{r}
+delay_table_weather <- delay_table %>% 
+  left_join(weather_clean, by = "time_hour")
+```
+
+```{r message=FALSE}
+delay_table_weather %>% 
+  select(time_hour, count, perc_delayed, perc_delay_more_1hr, origin, temp, wind_speed, visib, wind_dir, wind_gust) %>% 
+  ggpairs()
 ```
 
