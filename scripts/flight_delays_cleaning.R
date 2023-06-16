@@ -132,3 +132,23 @@ flights_weather_planes_airlines <- flights_weather_planes %>%
 
 # write data to clean folder
 write_csv(flights_weather_planes_airlines, "clean_data/flights_weather_planes_airlines.csv", append = FALSE)
+
+# airports data
+# join airpots data to flights_weather_planes_airlines by dest == faa
+
+# several airports listed as NA because they are internation
+airport %>% 
+  mutate()
+
+all_joined <- flights_weather_planes_airlines %>% 
+  left_join(airports, by = c("dest" = "faa"))
+
+# several airports listed as NA because they are internation
+all_joined <- all_joined %>% 
+  mutate(name.y = case_when(dest == "SJU" ~ "Luis Manoz Marin International Airport, Puerto Rico",
+                            dest == "BQN" ~ "Rafael Hernández International Airport, Puerto Rico",
+                            dest == "PSE" ~ "Mercedita International Airport, Puerto Rico",
+                            dest == "STT" ~ "Cyril E King Airport, Virgin Islands",
+                            TRUE ~ name.y))
+
+write.csv(all_joined, "clean_data/all_joined.csv", append = FALSE)

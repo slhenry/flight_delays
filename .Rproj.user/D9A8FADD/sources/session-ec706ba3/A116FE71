@@ -1,9 +1,9 @@
 {
     "id": "A116FE71",
-    "path": "C:/Users/slhen/OneDrive/Documents/$CodeClan/final_project_SarahHenry/flight_delays/scripts/flight_delays_cleaning.R",
+    "path": "~/$CodeClan/final_project_SarahHenry/flight_delays/scripts/flight_delays_cleaning.R",
     "project_path": "scripts/flight_delays_cleaning.R",
     "type": "r_source",
-    "hash": "4217684127",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1686498981255.0,
@@ -13,15 +13,15 @@
         "tempName": "Untitled2",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "63,47",
-        "scrollLine": "48"
+        "cursorPosition": "109,29",
+        "scrollLine": "102"
     },
     "folds": "",
-    "lastKnownWriteTime": 1686671402,
+    "lastKnownWriteTime": 1686766960,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1686671402618,
+    "last_content_update": 1686766960596,
     "read_only": false,
     "read_only_alternatives": []
 }

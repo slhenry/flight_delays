@@ -10,6 +10,13 @@ output: html_notebook
 library(tidyverse)
 library(here)
 library(GGally)
+library(modelr)
+library(leaflet)
+library(rpart)
+library(rpart.plot)
+library(yardstick)
+library(caret)
+library(ranger)
 ```
 
 ```{r}
@@ -42,16 +49,36 @@ flights_clean %>%
 ```{r}
 flights_clean %>% 
   group_by(delay_dep, origin) %>% 
-  count() %>% 
+  summarise(count = n()) %>% 
   ggplot()+
-  geom_col(aes(x = reorder(delay_dep, n), y = n), fill = "steelblue")+
+  geom_col(aes(x = origin, y = count, fill = delay_dep), position = "fill")+
   theme_classic()+
   labs(
     x = "Flight delay",
     y = "Number of flights",
-    title = "Number of flights delayed from Newark Airport in 2017"
-  )+
-  facet_grid(~origin)
+    title = "Comparison of Flight Delays from New York Airports in 2017"
+  )
+```
+
+```{r}
+flights_clean %>% 
+  filter(delay_dep %in% c( "< 1hr delay", "> 1hr delay"),
+         origin == "EWR") %>% 
+  ggplot(aes(x = dep_delay))+
+  geom_histogram(bin = 50)+
+  xlim(0, 1000)
+```
+
+? Could do a skewness calculation?
+
+
+```{r}
+flights_clean %>% 
+  filter(delay_arr %in% c( "< 1hr delay", "> 1hr delay"),
+         origin == "EWR") %>% 
+  ggplot(aes(x = arr_delay))+
+  geom_histogram(bin = 50)+
+  xlim(0, 1000)
 ```
 
 
@@ -139,7 +166,25 @@ flights_clean %>%
   ggplot(aes(x = hour, y = n, fill = delayed, position = "dodge"))+
   geom_col(position = "dodge")
 ```
+```{r}
+flights_clean %>% 
+  group_by(hour) %>% 
+  summarise(mean_delay = mean(dep_delay)) %>% 
+  ggplot(aes(x = hour, y = mean_delay))+
+  geom_point()
+```
 
+```{r}
+flights_clean %>% 
+  ggplot(aes(x = sched_dep_time, y = dep_delay))+
+  geom_point()
+```
+
+```{r}
+flights_clean %>% 
+  ggplot(aes(x = sched_arr_time, y = arr_delay))+
+  geom_point()
+```
 
 
 ```{r}
@@ -206,6 +251,15 @@ newark_flights_weather %>%
   ggplot(aes(x = temp, y = delayed))+
   geom_boxplot()
 ```
+
+```{r}
+newark_flights_weather %>% 
+  ggplot(aes(x = hour, y = delayed))+
+  geom_boxplot()
+```
+
+
+
 ```{r message=FALSE}
 newark_flights_weather %>% 
   select(delayed, wind_speed, wind_gust, temp, visib) %>% 
@@ -365,7 +419,10 @@ flights_weather_planes_airlines %>%
             mean_delay = mean(dep_delay),
             perc_flights_delayed = sum(delayed)/count*100,
             perc_flights_delayed_hr = sum(delayed_1hr_more)/count*100) %>% 
-  arrange(desc(perc_flights_delayed)) 
+  arrange(desc(perc_flights_delayed)) %>% 
+  ggplot(aes(x = reorder(name, mean_delay), y = mean_delay, ))+
+  geom_col()+
+  coord_flip()
 ```
 
 ```{r}
@@ -411,5 +468,486 @@ delay_table_weather <- delay_table %>%
 delay_table_weather %>% 
   select(time_hour, count, perc_delayed, perc_delay_more_1hr, origin, temp, wind_speed, visib, wind_dir, wind_gust) %>% 
   ggpairs()
+```
+
+Correlation between departure delay and arrival delay
+
+```{r}
+flights_clean %>% 
+  drop_na(arr_delay) %>% 
+  drop_na(dep_delay) %>% 
+  ggplot(aes(x = dep_delay, y = arr_delay))+
+  geom_point()+
+  geom_smooth()
+```
+
+```{r}
+flights_clean %>% 
+  filter(delayed == "TRUE") %>% 
+  drop_na(arr_delay) %>% 
+  drop_na(dep_delay) %>% 
+  ggplot(aes(x = dep_delay, y = arr_delay))+
+  geom_point()+
+  geom_smooth()
+```
+
+
+
+```{r}
+flight_clean %>% 
+  drop_na(arr_delay) %>% 
+  drop_na(dep_delay) %>% 
+  summarise(r_all_flights = cor(dep_delay, arr_delay))
+```
+
+
+
+```{r}
+flight_clean %>% 
+  drop_na(arr_delay) %>% 
+  drop_na(dep_delay) %>% 
+  filter(delayed == TRUE) %>% 
+  summarise(r_delayed_flights = cor(dep_delay, arr_delay))
+```
+
+```{r}
+flight_clean %>% 
+  drop_na(arr_delay) %>% 
+  drop_na(dep_delay) %>% 
+  filter(delayed == TRUE) %>% 
+   ggplot(aes(x = dep_delay, y = arr_delay))+
+  geom_point()+
+  geom_smooth()+
+  theme_classic()+
+  labs(
+    title = "Correlation between departure and arrival times of delayed flights from EWR",
+    x = "Departure delay (minutes)",
+    y = "Arrival delay (minutes)",
+    subtitle = "R = 0.961"
+  )
+  
+```
+
+
+```{r}
+flights_weather_planes_airlines %>% 
+  drop_na(arr_delay) %>% 
+  drop_na(dep_delay) %>% 
+  filter(delayed_1hr_more == 1) %>% 
+   ggplot(aes(x = dep_delay, y = arr_delay))+
+  geom_point()+
+  geom_smooth()
+```
+
+```{r}
+flight_clean %>% 
+  drop_na(arr_delay) %>% 
+  drop_na(dep_delay) %>% 
+  filter(delayed_1hr_more == TRUE) %>% 
+  summarise(cor(dep_delay, arr_delay))
+```
+Model building
+
+simple linear regression for dep_delay verses wind_speed
+
+```{r}
+flights_weather %>% 
+  group_by(wind_class) %>% 
+  summarise(mean_delay = mean(dep_delay),
+            mean_wind_speed = mean(wind_speed),
+            count = n()) %>% 
+  ggplot(aes(x = mean_wind_speed, y = mean_delay, size = count, colour = wind_class))+
+  geom_point()
+```
+
+
+```{r}
+flights_weather %>% 
+  filter(wind_class == "Strong breeze",
+         month == 5)
+```
+
+
+```{r}
+flights_weather %>% 
+  ggplot(aes(y = dep_delay, x = wind_speed, colour = wind_class))+
+  geom_jitter()
+```
+
+```{r}
+model_slr1 <- lm(formula = dep_delay ~ wind_gust + wind_speed + temp + visib, data = flights_weather)
+
+model_slr1
+```
+```{r}
+flights_weather_planes_airlines %>% 
+  distinct(visib)
+```
+
+
+```{r}
+flights_weather_planes_airlines_trim <- flights_weather_planes_airlines %>% 
+  select(-c(year.x, date, dep_time, sched_dep_time, arr_time, sched_arr_time, flight, tailnum, time_hour, delayed, delayed_1hr_more, engines)) %>% 
+  glimpse()
+
+model_weather <- (lm(dep_delay ~ wind_dir + wind_speed + wind_gust + precip + pressure + visib, data = flights_weather_planes_airlines_trim))
+
+model_weather
+```
+
+```{r}
+flights_weather_planes_airlines_trim %>% 
+  distinct(name)
+```
+
+
+All datasets joined
+
+```{r}
+all_joined <- read_csv("clean_data/all_joined.csv")
+```
+
+```{r}
+airport_table <- all_joined %>% 
+  filter(origin == "EWR") %>% 
+  group_by(name.y) %>% 
+  summarise(count = n(),
+            delayed_flights = sum(delayed),
+            prop_delayed = delayed_flights/count) %>% 
+  arrange(desc(prop_delayed))
+```
+
+```{r}
+airports <- read_csv("raw_data/airports.csv")
+```
+
+```{r}
+airport_table_latlong <- airport_table %>% 
+  left_join(airports, by = c("name.y" ="name"))
+
+write_csv(airport_table_latlong, "clean_data/airport_table_latlong.csv", append = FALSE)
+```
+
+
+```{r}
+airport_latlong_updated <- read_csv("clean_data/airport_table_latlong_updated.csv")
+```
+
+
+```{r}
+all_joined %>% 
+  filter(is.na(name.y)) %>% 
+  distinct(dest)
+```
+
+```{r}
+airport_latlong_updated <- airport_latlong_updated %>% 
+  mutate(delay_class = case_when(prop_delayed <= 0.31 ~ "1",
+                                 prop_delayed <= 0.3738 ~ "2",
+                                 prop_delayed <= 0.4143 ~ "3",
+                                 prop_delayed > 0.4143 ~ "4")) 
+
+pal <- colorFactor(
+  palette = c('green', 'blue', 'orange', 'red'),
+  domain = airport_latlong_updated$delay_class
+)
+size <- c()
+```
+
+```{r}
+airport_latlong_updated %>% 
+  mutate(count_group = case_when(count < 500 ~"<500",
+                                 count < 1000 ~ "<1000",
+                                 count < 2000 ~ "<2000",
+                                 count < 3000 ~ "<3000",
+                                 count < 4000 ~ "<4000",
+                                 count < 5000 ~ "<5000",
+                                 count < 6000 ~ "<6000",
+                                 count < 7000 ~ "<7000",
+                                 count > 7000 ~ ">7000"))
+
+airport_latlong_updated <- airport_latlong_updated %>% 
+  mutate(count_sqrt = sqrt(count)/3)
+```
+
+
+
+```{r}
+airport_latlong_trim <- airport_latlong_updated %>% 
+  mutate(across(c(count, delayed_flights, lat, lon), as.numeric)) %>% 
+  filter(!is.na(lat)) %>% 
+  filter(!is.na(lon))
+
+leaflet(airport_latlong_trim) %>% 
+  addTiles() %>% 
+  addCircleMarkers(lng = ~lon,
+                   lat = ~lat,
+                   weight = 1,
+                   radius = ~airport_latlong_updated$count_sqrt,
+                   color = ~pal(delay_class)) %>% 
+  addLegend('bottomright', pal = pal, values = airport_latlong_updated$delay_class,
+            title = 'Quartile groups<br>proportion of<br>flights delayed',
+            opacity = 1)
+```
+
+
+
+## Decision trees
+
+First need to impute data into the NAs for wind speed and wind gusts. Want to swap NAs for the mean speed for that day. 
+
+```{r}
+all_joined %>% 
+  summary
+```
+
+
+```{r}
+all_joined_imputed <- all_joined %>% 
+  group_by(date, origin) %>% 
+  mutate(across(.cols = temp:wind_speed, .fns = ~if_else(is.na(.x), mean(.x, na.rm = TRUE), .x)),
+         across(.cols = wind_gust:visib, .fns = ~if_else(is.na(.x), mean(.x, na.rm = TRUE), .x)))
+```
+
+```{r}
+all_joined_imputed <- all_joined_imputed %>% 
+  group_by(month, origin) %>% 
+  mutate(temp = if_else(is.na(temp), mean(temp, na.rm = TRUE), temp))
+```
+
+
+```{r}
+all_joined_imputed <- all_joined_imputed %>% 
+  mutate(wind_class = case_when(wind_speed <= 24 ~"Breeze",
+                                wind_speed <= 31 ~"Strong breeze",
+                                wind_speed <= 38 ~ "Near gale",
+                                wind_speed > 38 ~ "Gale"),
+         .after = wind_speed)
+```
+
+
+```{r}
+all_joined_imputed <- all_joined_imputed %>% 
+  mutate(wind_direction = case_when(wind_dir <= 23 ~ "North",
+                                    wind_dir <= 68 ~ "Northeast",
+                                    wind_dir <= 113 ~ "East",
+                                    wind_dir <= 158 ~ "Southeast",
+                                    wind_dir <= 203 ~ "south",
+                                    wind_dir <= 248 ~ "southwest",
+                                    wind_dir <= 293 ~ "West",
+                                    wind_dir <= 336 ~ "northwest",
+                                    wind_dir > 336 ~ "north"),
+         .after = wind_dir,
+         delayed = as.logical(delayed))
+head(all_joined_imputed)
+```
+
+### Correlation plots with new imputed weather data for Newark airport
+```{r}
+ewr_all_joined <- all_joined_imputed %>%
+   filter(origin == "EWR")
+
+ewr_weather %>% 
+  select(month, dep_delay, wind_direction, wind_speed, wind_class, temp, visib)
+ 
+```
+
+```{r message=FALSE}
+ewr_weather %>% 
+  ggpairs()
+```
+
+```{r}
+all_joined_trim <- all_joined_imputed %>% 
+  select(date, origin, month, day, delayed, delay_dep, delay_arr, air_time, distance, hour, temp, dewp, humid, wind_direction, wind_class, visib, type)
+```
+
+
+```{r message=FALSE}
+all_joined_trim %>% 
+  select(date, origin, month, hour, day, delayed, delay_arr, air_time, distance) %>% 
+  ggpairs()
+```
+
+```{r message=FALSE}
+all_joined_trim %>% 
+  select(delayed, hour, temp, wind_direction, wind_class, visib) %>% 
+  ggpairs()
+```
+```{r}
+ewr_all_joined_trim
+```
+
+
+```{r}
+all_joined_imputed %>%
+  ggplot()+
+  aes(x = month, y = delayed)+
+  geom_boxplot()
+```
+
+
+## Decision Tree!
+
+```{r}
+ewr_fit <- all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  ungroup() 
+  
+
+ewr_fit <- ewr_fit %>% 
+  mutate(time_of_day = case_when(hour <= 6 ~ "night",
+                                 hour <= 12 ~ "morning",
+                                 hour <= 18 ~ "afternoon",
+                                 hour <= 24 ~ "evening"),
+         visibility = if_else(visib >= 5, "good", "poor"))
+
+ewr_fit_dt <- ewr_fit %>% 
+  select(delayed, month, time_of_day, distance, wind_direction, wind_class, temp, visibility, wind_gust) %>% 
+  mutate(delayed = as.factor(delayed)) %>% 
+  na.omit()
+ewr_fit_dt
+```
+
+test train split set up
+
+```{r}
+n_data <- nrow(ewr_fit_dt)
+
+test_index <- sample(1:n_data, size = n_data*0.2)
+
+ewr_test <- slice(ewr_fit_dt, test_index)
+
+ewr_train <- slice(ewr_fit_dt, -test_index)
+```
+
+```{r}
+ewr_test %>% 
+  janitor::tabyl(delayed)
+```
+```{r}
+ewr_train %>% 
+  janitor::tabyl(delayed)
+```
+
+```{r}
+ewr_fit_tree <- rpart(
+  formula = delayed ~.,
+  data = ewr_train,
+  method = "class"
+)
+
+rpart.plot(ewr_fit_tree,
+           yesno = 2,
+           fallen.leaves = TRUE,
+           faclen = 6,
+           digits = 2, 
+           type = 4,
+           extra = 101)
+```
+```{r}
+rpart.rules(ewr_fit_tree, cover = TRUE)
+```
+
+
+
+```{r}
+# add predictions to test the model
+ewr_test_pred <- ewr_test %>% 
+  add_predictions(ewr_fit_tree, type = "class")
+```
+
+
+```{r}
+ewr_test_pred %>% 
+  
+  select(time_of_day, month, delayed, pred)  
+```
+
+```{r}
+conf_mat <- ewr_test_pred %>% 
+  conf_mat(truth = delayed, estimate = pred)
+
+conf_mat
+```
+
+```{r}
+accuracy <- ewr_test_pred %>% 
+  accuracy(truth = delayed, estimate = pred)
+
+accuracy
+```
+```{r}
+ewr_test_pred %>% 
+  sensitivity(truth = delayed, estimate = pred)
+```
+
+```{r}
+ewr_test_pred %>% 
+  specificity(truth = delayed, estimate = pred)
+```
+
+```{r}
+confusionMatrix(ewr_test_pred$pred, ewr_test_pred$delayed)
+```
+
+
+## Random Forest
+
+
+```{r}
+ewr_fit %>% 
+  summary
+```
+
+```{r}
+ewr_trim <- ewr_fit %>% 
+  select(month, day, delayed, air_time, distance, hour, minute, temp, wind_direction, wind_speed, wind_class, wind_gust, visibility, year.y, type, manufacturer, model, engines, seats, engine, name.x, lat, lon, alt, tz) %>% 
+  na.omit()
+
+
+ewr_trim %>% 
+  summary
+```
+
+
+```{r}
+rf_classifier <- ranger(delayed ~ .,
+                       data = ewr_trim, 
+                       importance = "impurity",
+                       num.trees = 1000,
+                       mtry = 2, 
+                       min.node.size = 5)
+
+rf_classifier
+```
+
+```{r}
+sort(importance(rf_classifier))
+```
+
+From this we see that hour, airtime, day, minute and year.y(ie year of plane) are the most important variables, followed by wind_gust, wind_speed, month, wind_direction, temperature, model, lat, distance, altitude, longitude, seats, name.x, manufacturer, visibility, tz, engine, wind_class, type and engines. 
+
+
+
+rf_preds <- thrones_test %>% 
+  mutate(pred = predict(rf_classifer, thrones_test)$predictions)
+
+rf_preds %>% 
+  select(dth_flag, pred)
+  
+```{r}
+rf_preds <- ewr_test %>% 
+  mutate(pred = predict(rf_classifier, data = ewr_test$predictions))
+
+rf_preds %>% 
+  select(delayed, preds)
+```
+  
+
+
+
+```{r}
+confusionMatrix(rf_classifier$pred, rf_classifier$delayed)
 ```
 

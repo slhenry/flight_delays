@@ -8,3 +8,6 @@ raw_data/
 
 # ignore all csv files 
 *.csv
+
+# ignore ppt files
+ *.pptx
