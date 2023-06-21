@@ -17,6 +17,10 @@ library(rpart.plot)
 library(yardstick)
 library(caret)
 library(ranger)
+library(janitor)
+library(pROC)
+library(broom)
+library(ggridges)
 ```
 
 ```{r}
@@ -27,6 +31,7 @@ flights_clean <- read_csv(here("clean_data/flight_clean.csv"))
 
 1. How many flights are delayed?
 2. By how much are flights delayed?
+3. How does this compare to other NY airports
 
 
 
@@ -39,12 +44,26 @@ flights_clean %>%
   geom_col(aes(x = reorder(delay_dep, n), y = n), fill = "steelblue")+
   coord_flip()+
   theme_classic()+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
   labs(
     x = "Flight delay",
     y = "Number of flights",
     title = "Number of flights delayed from Newark Airport in 2017"
-  )
+  )+
+  theme(plot.title = element_text(hjust = 1))
 ```
+
+```{r}
+ewr_flights <- flights_clean %>% 
+  filter(origin == "EWR") 
+
+ewr_flights %>% 
+  group_by(delay_dep) %>% 
+  summarise(number = n(),
+            prop = n()/nrow(ewr_flights)*100)
+```
+
 
 ```{r}
 flights_clean %>% 
@@ -54,32 +73,17 @@ flights_clean %>%
   geom_col(aes(x = origin, y = count, fill = delay_dep), position = "fill")+
   theme_classic()+
   labs(
-    x = "Flight delay",
-    y = "Number of flights",
-    title = "Comparison of Flight Delays from New York Airports in 2017"
-  )
+    x = "Airport",
+    y = "Proportion of flights",
+    title = "Comparison of Flight Delays from New York Airports in 2017",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))
 ```
 
-```{r}
-flights_clean %>% 
-  filter(delay_dep %in% c( "< 1hr delay", "> 1hr delay"),
-         origin == "EWR") %>% 
-  ggplot(aes(x = dep_delay))+
-  geom_histogram(bin = 50)+
-  xlim(0, 1000)
-```
-
-? Could do a skewness calculation?
-
-
-```{r}
-flights_clean %>% 
-  filter(delay_arr %in% c( "< 1hr delay", "> 1hr delay"),
-         origin == "EWR") %>% 
-  ggplot(aes(x = arr_delay))+
-  geom_histogram(bin = 50)+
-  xlim(0, 1000)
-```
 
 
 ```{r}
@@ -89,112 +93,104 @@ flights_clean %>%
             proportion = n()/nrow(flights_clean))
 ```
 
-
-```{r}
-flights_clean %>% 
-  group_by(delay_dep, origin) %>% 
-  summarise(count = n(),
-            percentage = n()/nrow(flights_clean)*100) %>% 
-  ggplot()+
-  geom_col(aes(x = delay_dep, y = percentage))+
-  theme_classic()+
-  labs(
-    x = "Flight delay",
-    y = "Number of flights",
-    title = "Number of flights delayed from Newark Airport in 2017"
-  )+
-  facet_grid(~origin)
-```
-
-
+## Flight delay by time of year/day
 
 Delay proportion by month to check for seasonal variation
 
+
 ```{r}
-flights_clean %>% 
+all_joined_imputed%>% 
   filter(origin == "EWR") %>% 
   group_by(month, delay_dep) %>% 
-  count() %>% 
-  ggplot(aes(x = month, y = n, fill = delay_dep))+
-  geom_col()
+  summarise(mean_delay = mean(dep_delay),
+            count = n())%>% 
+  ggplot()+
+  geom_col(aes(x = month, y = count, fill = factor(delay_dep, levels = c("> 1hr delay", "< 1hr delay","< 15 minutes delay",  "Early or on-time"))), position = "fill")+
+  theme_classic()+
+  labs(
+    x = "Month",
+    y = "Proportion of delayed flights",
+    title = "Proportion of Delayed Flights by Month from Newark",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))+
+  scale_x_continuous(breaks=seq(1,12,1))
 ```
 
-
+Delay proportion by time of day
 
 ```{r}
-flight_clean %>% 
-  filter(origin == "EWR",
-         delay_dep != "Early or on-time") %>% 
-  drop_na(arr_delay) %>% 
-  group_by(month) %>% 
+all_joined_imputed%>% 
+  filter(origin == "EWR") %>% 
+  group_by(hour, delay_dep) %>% 
   summarise(mean_delay = mean(dep_delay),
-            mean_arr_delay = mean(arr_delay),
-            count = n()) %>% 
-  ggplot(aes(x = month, y = mean_delay))+
-  geom_col()
+            count = n())%>% 
+  ggplot()+
+  geom_col(aes(x = hour, y = count, fill = factor(delay_dep, levels = c("> 1hr delay", "< 1hr delay","< 15 minutes delay",  "Early or on-time"))), position = "fill")+
+  theme_classic()+
+  labs(
+    x = "Hour",
+    y = "Proportion of delayed flights",
+    title = "Flight Delay by Hour from Newark Airport",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 1))
+  #scale_x_continuous(breaks=seq(1,12,1))
 ```
 
 
-```{r}
-flights_clean %>% 
-   filter(origin == "EWR") %>% 
-  drop_na(arr_delay) %>% 
-  group_by(month) %>% 
-  summarise(mean_delay = mean(dep_delay),
-            mean_arr_delay = mean(arr_delay),
-            count = n()) %>% 
-  ggplot(aes(x = month, y = mean_arr_delay, colour = count))+
-  geom_point(size = 3)
-```
-
-
-```{r}
-flight_clean %>% 
-  filter(origin == "EWR",
-         delay_dep != "Early or on-time") %>% 
-  group_by(month) %>% 
-  summarise(mean_delay = mean(dep_delay),
-            mean_arr_delay = mean(arr_delay, na.rm = TRUE),
-            count = n()) %>% 
-  ggplot(aes(x = month, y = mean_arr_delay))+
-  geom_col()
-```
 ```{r}
 flights_clean %>% 
   group_by(hour, delayed) %>% 
-  count() %>% 
-  ggplot(aes(x = hour, y = n, fill = delayed, position = "dodge"))+
-  geom_col(position = "dodge")
+  summarise(count = n()) %>% 
+  ggplot(aes(x = hour, y = count, colour = delayed))+
+  geom_point()+
+  geom_line()+
+  theme_classic()+
+  labs(
+    x = "Hour",
+    y = "Number of delayed flights",
+    title = "Number of Delayed Flights by Hour from Newark Airport",
+    fill = "Delayed"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 1))
 ```
+
+
 ```{r}
 flights_clean %>% 
-  group_by(hour) %>% 
+  group_by(hour,origin) %>% 
   summarise(mean_delay = mean(dep_delay)) %>% 
-  ggplot(aes(x = hour, y = mean_delay))+
-  geom_point()
+  ggplot(aes(x = hour, y = mean_delay, colour = origin))+
+  geom_point()+
+  geom_line()+
+  theme_classic()+
+  labs(
+    x = "Hour",
+    y = "Average flight delay (minutes)",
+    title = "Average Flight Delay by Hour from New York Airports",
+    fill = "Airport"
+  )+
+  scale_colour_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 1))+
+  scale_x_continuous(breaks = seq(0, 24, 2))
 ```
 
 ```{r}
 flights_clean %>% 
   ggplot(aes(x = sched_dep_time, y = dep_delay))+
   geom_point()
-```
-
-```{r}
-flights_clean %>% 
-  ggplot(aes(x = sched_arr_time, y = arr_delay))+
-  geom_point()
-```
-
-
-```{r}
-flight_clean %>% 
-  filter(origin == "EWR") %>% 
-  drop_na(delay_diff) %>% 
-  group_by(month) %>% 
-  summarise(month_diff = mean(delay_diff)) %>% 
-  ggplot(aes(x = month, y = month_diff))+
-  geom_col()
 ```
 
 
@@ -215,23 +211,8 @@ flights_clean %>%
   count()
 ```
 
-Airport comparisons 
 
-```{r}
-flight_clean %>% 
-  group_by(origin, delay_dep) %>% 
-  summarise(count = n()) %>%
-  ggplot()+
-  geom_col(aes(x = delay_dep, y = count))+
-  theme_classic()+
-  labs(
-    x = "Flight delay",
-    y = "Number of flights",
-    title = "Number of flights delayed from Newark Airport in 2017"
-  )+
-  facet_grid(~origin)
-```
-WEather correlations
+## WEather correlations
 
 ```{r}
 newark_flights_weather <- read_csv("clean_data/newark_flights_weather.csv")
@@ -248,8 +229,37 @@ newark_flights_weather %>%
 
 ```{r}
 newark_flights_weather %>% 
+  ggplot(aes(x = wind_speed, y = delayed))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(
+    x = "Wind speed (mph)",
+    y = "Delayed flights",
+    title = "Wind Speed",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 20, hjust = 0.4))
+```
+
+
+```{r}
+newark_flights_weather %>% 
   ggplot(aes(x = temp, y = delayed))+
-  geom_boxplot()
+  geom_boxplot()+
+  theme_classic()+
+  labs(
+    x = "Temperature (F)",
+    y = "Delayed flights",
+    title = "Temperature",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 20, hjust = 0.4))
 ```
 
 ```{r}
@@ -410,20 +420,69 @@ flights_weather_planes_airlines <- flights_weather_planes_airlines %>%
          delayed_1hr_more = as.integer(delayed_1hr_more))
 ```
 
+```{r}
+flights_weather_planes_airlines_regex <- flights_weather_planes_airlines %>% 
+  mutate(name = str_remove(name, " Inc."),
+         name = str_remove(name, " Co"))
+```
+
 
 
 ```{r}
-flights_weather_planes_airlines %>% 
+flights_weather_planes_airlines_regex %>% 
   group_by(name) %>% 
   summarise(count = n(),
             mean_delay = mean(dep_delay),
             perc_flights_delayed = sum(delayed)/count*100,
             perc_flights_delayed_hr = sum(delayed_1hr_more)/count*100) %>% 
   arrange(desc(perc_flights_delayed)) %>% 
-  ggplot(aes(x = reorder(name, mean_delay), y = mean_delay, ))+
-  geom_col()+
-  coord_flip()
+  ggplot(aes(x = reorder(name, perc_flights_delayed), y = perc_flights_delayed, ))+
+  geom_col(fill = "steelblue")+
+  coord_flip()+
+  theme_classic()+
+  labs(
+    y = "Percentage flights delayed",
+    title = "Percentage Flight Delays by Airline"
+  )+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(axis.title.y=element_blank())+
+  theme(plot.title = element_text(size = 20, hjust = -0.4))
 ```
+
+```{r}
+all_joined_imputed %>%
+  filter(delayed = TRUE) %>% 
+  ggplot(aes(x = air_time, y = delay_diff))+
+  geom_point()
+```
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  group_by(type, delayed) %>% 
+  summarise(mean = mean(dep_delay)) %>% 
+  ggplot(aes(x = type, y = mean, fill = delayed))+
+  geom_col()
+```
+```{r}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  group_by(year.y, delayed) %>% 
+  summarise(mean = mean(dep_delay)) %>% 
+  ggplot(aes(x = year.y, y = mean, fill = delayed))+
+  geom_col()+
+  xlim(1950, 2025)
+```
+
+
+
+
+
+
+
+
+
 
 ```{r}
 flights_weather_planes_airlines %>% 
@@ -503,7 +562,7 @@ flight_clean %>%
 
 
 ```{r}
-flight_clean %>% 
+flights_clean %>% 
   drop_na(arr_delay) %>% 
   drop_na(dep_delay) %>% 
   filter(delayed == TRUE) %>% 
@@ -546,9 +605,7 @@ flight_clean %>%
   filter(delayed_1hr_more == TRUE) %>% 
   summarise(cor(dep_delay, arr_delay))
 ```
-Model building
 
-simple linear regression for dep_delay verses wind_speed
 
 ```{r}
 flights_weather %>% 
@@ -571,8 +628,29 @@ flights_weather %>%
 ```{r}
 flights_weather %>% 
   ggplot(aes(y = dep_delay, x = wind_speed, colour = wind_class))+
-  geom_jitter()
+  geom_jitter(position = position_jitter(h = 0.03))
 ```
+```{r}
+flights_weather %>% 
+  group_by(wind_speed) %>% 
+  summarise(mean_delay = mean(dep_delay),
+            count = n()) %>% 
+  ggplot(aes(y = mean_delay, x = wind_speed, size = count))+
+  geom_point()
+```
+
+```{r}
+flights_weather %>% 
+  group_by(wind_speed, wind_class) %>% 
+  summarise(mean_delay = mean(dep_delay),
+            count = n())
+```
+
+```{r}
+flights_weather %>% 
+  filter(wind_speed == 29.920280)
+```
+
 
 ```{r}
 model_slr1 <- lm(formula = dep_delay ~ wind_gust + wind_speed + temp + visib, data = flights_weather)
@@ -613,7 +691,9 @@ airport_table <- all_joined %>%
   group_by(name.y) %>% 
   summarise(count = n(),
             delayed_flights = sum(delayed),
-            prop_delayed = delayed_flights/count) %>% 
+            prop_delayed = delayed_flights/count,
+            airtime = mean(air_time),
+            distance = mean(distance)) %>% 
   arrange(desc(prop_delayed))
 ```
 
@@ -628,6 +708,11 @@ airport_table_latlong <- airport_table %>%
 write_csv(airport_table_latlong, "clean_data/airport_table_latlong.csv", append = FALSE)
 ```
 
+```{r}
+airport_table_latlong %>% 
+  ggplot(aes(x = distance, y = prop_delayed))+
+  geom_point()
+```
 
 ```{r}
 airport_latlong_updated <- read_csv("clean_data/airport_table_latlong_updated.csv")
@@ -655,7 +740,7 @@ size <- c()
 ```
 
 ```{r}
-airport_latlong_updated %>% 
+airport_latlong_updated <- airport_latlong_updated %>% 
   mutate(count_group = case_when(count < 500 ~"<500",
                                  count < 1000 ~ "<1000",
                                  count < 2000 ~ "<2000",
@@ -670,6 +755,37 @@ airport_latlong_updated <- airport_latlong_updated %>%
   mutate(count_sqrt = sqrt(count)/3)
 ```
 
+```{r}
+airport_latlong_updated %>% 
+  ggplot(aes(x = count, y = delayed_flights))+
+  geom_point()+
+  geom_smooth()+
+  theme_classic()+
+  labs(
+    x = "Number of flights to Airport",
+    y = "Number of delayed flights",
+    title = "Number of Delayed flights compared to Total Flights by Airport"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.4))
+```
+
+
+```{r}
+airport_latlong_updated %>% 
+  ggplot(aes(x = count, y = prop_delayed))+
+  geom_point(colour = "steelblue")+
+  labs(
+    x = "Number of flights Airport",
+    y = "Proportion of delayed flights",
+    title = "Proportion of Delayed flights compared to Total Flights by Airport"
+  )+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.7))
+```
 
 
 ```{r}
@@ -686,10 +802,13 @@ leaflet(airport_latlong_trim) %>%
                    radius = ~airport_latlong_updated$count_sqrt,
                    color = ~pal(delay_class)) %>% 
   addLegend('bottomright', pal = pal, values = airport_latlong_updated$delay_class,
-            title = 'Quartile groups<br>proportion of<br>flights delayed',
+            title = 'Proportion of<br>flights delayed',
             opacity = 1)
 ```
 
+```{r}
+airport_latlong_updated
+```
 
 
 ## Decision trees
@@ -707,12 +826,21 @@ all_joined_imputed <- all_joined %>%
   group_by(date, origin) %>% 
   mutate(across(.cols = temp:wind_speed, .fns = ~if_else(is.na(.x), mean(.x, na.rm = TRUE), .x)),
          across(.cols = wind_gust:visib, .fns = ~if_else(is.na(.x), mean(.x, na.rm = TRUE), .x)))
+
+all_joined_imputed %>% 
+  summary
 ```
 
 ```{r}
 all_joined_imputed <- all_joined_imputed %>% 
   group_by(month, origin) %>% 
   mutate(temp = if_else(is.na(temp), mean(temp, na.rm = TRUE), temp))
+```
+
+```{r}
+all_joined_imputed <- all_joined_imputed %>% 
+  group_by(month, origin) %>% 
+  mutate(across(.cols = c(temp, precip, pressure, humid, dewp), .fns = ~if_else(is.na(.x), mean(.x, na.rm = TRUE), .x)))
 ```
 
 
@@ -723,6 +851,7 @@ all_joined_imputed <- all_joined_imputed %>%
                                 wind_speed <= 38 ~ "Near gale",
                                 wind_speed > 38 ~ "Gale"),
          .after = wind_speed)
+
 ```
 
 
@@ -736,19 +865,406 @@ all_joined_imputed <- all_joined_imputed %>%
                                     wind_dir <= 248 ~ "southwest",
                                     wind_dir <= 293 ~ "West",
                                     wind_dir <= 336 ~ "northwest",
-                                    wind_dir > 336 ~ "north"),
+                                    wind_dir > 336 ~ "North"),
          .after = wind_dir,
-         delayed = as.logical(delayed))
+         delayed = as.logical(delayed),
+         delayed_1hr_more = as.logical(delayed_1hr_more),
+         airport = if_else(origin == "EWR", "EWR", "other NY airport"))
+
 head(all_joined_imputed)
+
 ```
+
+```{r}
+all_joined_imputed %>% 
+  group_by(wind_class) %>% 
+  summarise(count = n(),
+            mean = mean(dep_delay))
+```
+
+```{r}
+
+```
+
+
+
+clean up temperature, precip, pressure, humid, dewp
+
+```{r}
+all_joined_imputed %>% 
+  summary
+```
+
+
+## Weather correlations with imputed data
+
+```{r message=FALSE}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  ungroup() %>% 
+  select(delayed, temp, pressure, visib, dewp, wind_speed, wind_gust, wind_dir, humid) %>% 
+  ggpairs()
+```
+
+
+```{r message=FALSE}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  ungroup() %>% 
+  select(dep_delay, temp, pressure, visib, dewp, wind_speed, wind_gust, wind_dir, humid) %>% 
+  ggpairs()
+```
+```{r message=FALSE}
+all_joined_imputed %>% 
+  ungroup() %>% 
+  select(delayed, delay_dep, wind_class, wind_direction) %>% 
+  ggpairs()
+```
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  ggplot(aes(x = wind_speed, y = dep_delay, colour = delayed))+
+  geom_point()
+```
+```{r}
+all_joined_imputed %>%
+  filter(origin == "EWR") %>% 
+  ggplot(aes(x = temp, y = delayed))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(
+    x = "Temperature (F)",
+    y = "Delayed flights",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=20))+
+  theme(text = element_text(size = 20))+
+  theme(plot.title = element_text(size = 20, hjust = 0.4))
+```
+
+```{r}
+all_joined_imputed %>%
+  filter(origin == "EWR") %>% 
+  ggplot(aes(x = wind_gust, y = delayed))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(
+    x = "Wind gusts (mph)",
+    y = "Delayed flights",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=20))+
+  theme(text = element_text(size = 20))+
+  theme(plot.title = element_text(size = 20, hjust = 0.4))
+```
+
+```{r}
+all_joined_imputed %>%
+  filter(origin == "EWR") %>% 
+  ggplot(aes(x = precip, y = delayed))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(
+    x = "Precipitation (inches)",
+    y = "Delayed flights",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=20))+
+  theme(text = element_text(size = 20))+
+  theme(plot.title = element_text(size = 20, hjust = 0.4))
+```
+```{r}
+all_joined_imputed %>%
+  filter(origin == "EWR") %>% 
+  ggplot(aes(x = wind_speed, y = delayed))+
+  geom_boxplot()+
+  theme_classic()+
+  labs(
+    x = "Wind speed (mph)",
+    y = "Delayed flights",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=20))+
+  theme(text = element_text(size = 20))+
+  theme(plot.title = element_text(size = 20, hjust = 0.4))
+```
+
+
+
+
+```{r}
+all_joined_imputed %>% 
+  group_by(wind_direction, delayed, airport) %>% 
+  summarise(mean = mean(wind_speed)) %>% 
+  ggplot(aes(x = wind_direction, y = mean, fill = delayed))+
+  geom_col(position = "dodge")+
+  theme_classic()+
+  facet_wrap(~airport)+
+  coord_flip()+
+  labs(
+    x = "Wind speed (mph)",
+    y = "Delayed flights",
+    fill = "Departure\ndelay",
+    title = "Effect of Wind Direction on Flight Delays from New York Airports"
+  )+
+  scale_fill_manual(values = c("#fdae61", "#2c7bb6"))+
+  theme(axis.text=element_text(size=16))+
+  theme(text = element_text(size = 14))+
+  theme(plot.title = element_text(size = 16, hjust = 0.4))
+```
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin != "EWR") %>% 
+  group_by(wind_direction, delayed) %>% 
+  summarise(mean = mean(wind_speed)) %>% 
+  ggplot(aes(x = wind_direction, y = mean, fill = delayed))+
+  geom_col(position = "dodge")
+```
+```{r}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  group_by(wind_direction, delayed_1hr_more) %>% 
+  summarise(mean = mean(wind_speed)) %>% 
+  ggplot(aes(x = wind_direction, y = mean, fill = delayed_1hr_more))+
+  geom_col(position = "dodge")
+```
+
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin != "EWR") %>% 
+  group_by(wind_direction, delayed_1hr_more) %>% 
+  summarise(mean = mean(wind_speed)) %>% 
+  ggplot(aes(x = wind_direction, y = mean, fill = delayed_1hr_more))+
+  geom_col(position = "dodge")
+```
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  group_by(month, delayed) %>% 
+  summarise(mean_temp = mean(temp)) %>% 
+  ggplot(aes(x = month, y = mean_temp, fill = delayed))+
+  geom_col(position = "dodge")
+```
+```{r}
+all_joined_imputed %>% 
+  filter(origin != "EWR") %>% 
+  group_by(month, delayed) %>% 
+  summarise(mean_temp = mean(temp)) %>% 
+  ggplot(aes(x = month, y = mean_temp, fill = delayed))+
+  geom_col(position = "dodge")
+```
+```{r}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  group_by(month, delayed) %>% 
+  summarise(mean_pressure = mean(pressure)) %>% 
+  ggplot(aes(x = month, y = mean_pressure, fill = delayed))+
+  geom_col(position = "dodge")
+```
+
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  group_by(month, delayed) %>% 
+  summarise(mean = mean(precip)) %>% 
+  ggplot(aes(x = month, y = mean, fill = delayed))+
+  geom_col(position = "dodge")
+```
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin != "EWR") %>% 
+  group_by(month, delayed) %>% 
+  summarise(mean = mean(precip)) %>% 
+  ggplot(aes(x = month, y = mean, fill = delayed))+
+  geom_col(position = "dodge")
+```
+
+```{r}
+all_joined_imputed %>% 
+  group_by(month, origin) %>% 
+  summarise(numbers = n(),
+            mean_delay = mean(dep_delay)) %>% 
+  ggplot(aes(x = month, y = mean_delay, fill = origin))+
+  geom_col()+
+  facet_wrap(~origin)
+```
+```{r}
+all_joined_imputed %>% 
+  filter(origin != "EWR") %>% 
+  group_by(month, delayed) %>% 
+  summarise(mean = mean(visib)) %>% 
+  ggplot(aes(x = month, y = mean, fill = delayed))+
+  geom_col(position = "dodge")
+```
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  group_by(delayed) %>% 
+  summarise(precip = mean(precip, na.rm = TRUE))
+```
+
+
+
+```{r}
+avg_table <- all_joined_imputed %>% 
+  filter(origin == "EWR") %>% 
+  group_by(delayed) %>% 
+  summarise(Temperature = mean(temp),
+            #pressure = mean(pressure, na.rm = TRUE),
+            Visibility = mean(visib, na.rm = TRUE),
+            Humidity = mean(humid, na.rm = TRUE),
+            #precip = mean(precip, na.rm = TRUE),
+            "Wind speed" = mean(wind_speed, na.rm = TRUE),
+            "Wind gust" = mean(wind_gust, na.rm = TRUE))
+
+avg_table_pivot <- avg_table %>% 
+  pivot_longer(cols = c(Temperature:"Wind gust"), names_to = "weather", values_to = "mean")
+
+avg_table_pivot %>% 
+  ggplot(aes(x = weather, y = mean, fill = delayed))+
+  geom_col(position = "dodge")+
+  theme_classic()+
+  labs(
+    y = "Mean weather",
+    title = "Impact of weather on flight delays from Newark airport",
+    fill = "Delayed"
+  )+
+  theme(axis.text=element_text(size=12))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))+
+  scale_fill_manual(values = c("#2c7bb6","#fdae61", "#abd9e9",  "#d7191c" ))
+```
+```{r}
+avg_table_pivot %>% 
+  ggplot(aes(x = mean, y = delayed))+
+  geom_boxplot()+
+  facet_grid(~weather)
+  
+```
+
+
+
+
+```{r}
+all_joined_imputed %>% 
+  summary(wind_speed)
+```
+
+
+
+```{r}
+all_joined_imputed %>% 
+  filter(delayed == TRUE) %>% 
+  group_by(wind_speed, airport) %>% 
+  summarise(mean = mean(dep_delay)) %>% 
+  ggplot(aes(y = mean, x = wind_speed, colour = airport))+
+  geom_point()+
+  facet_grid(~airport)+
+   theme_classic()+
+  labs(
+    x = "Wind speed (mph)",
+    y = "Mean delay (minutes)",
+    title = "Average Flight Delay with Wind Speed at New York Airports"
+  )+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))+
+  theme(legend.position="none")
+  
+```
+```{r}
+all_joined_imputed %>% 
+  filter(delayed == TRUE) %>% 
+  group_by(wind_speed, origin) %>% 
+  summarise(mean = mean(dep_delay)) %>% 
+  ggplot(aes(y = origin, x = wind_speed))+
+  geom_boxplot()
+```
+
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin != "EWR",
+         delayed == TRUE) %>% 
+  group_by(wind_speed) %>% 
+  summarise(mean = mean(dep_delay)) %>% 
+  ggplot(aes(y = mean, x = wind_speed))+
+  geom_point(colour = "steelblue")+
+  theme_classic()+
+  labs(
+    x = "Wind speed (mph)",
+    y = "Mean delay (minutes)",
+    title = "Time delay versus wind speed for Newark delayed flights"
+  )+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))
+  
+```
+
+```{r}
+all_joined_imputed %>% 
+  filter(origin != "EWR",
+         delayed == TRUE) %>% 
+  group_by(wind_speed) %>% 
+  summarise(mean = mean(dep_delay)) %>% 
+  ggplot(aes(y = mean, x = wind_speed))+
+  geom_point(colour = "steelblue")+
+  theme_classic()+
+  labs(
+    x = "Wind speed (mph)",
+    y = "Mean delay (minutes)",
+    title = "Time delay versus wind speed for Newark delayed flights"
+  )+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))
+  
+```
+
+
+
+```{r}
+all_joined_imputed %>% 
+  filter(delayed == TRUE,
+         origin == "EWR") %>% 
+  group_by(distance, delayed) %>% 
+  summarise(mean_delay = mean(dep_delay)) %>% 
+  ggplot(aes(x = distance, y = mean_delay))+
+  geom_point(colour = "steelblue")+
+  theme_classic()+
+  labs(
+    x = "Distance of flight",
+    y = "Mean delay (minutes)",
+    title = "Average time delay versus distance of delayed flight from Newark Airport"
+  )+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))+
+  ylim(0, 100)
+
+```
+
 
 ### Correlation plots with new imputed weather data for Newark airport
 ```{r}
 ewr_all_joined <- all_joined_imputed %>%
    filter(origin == "EWR")
 
-ewr_weather %>% 
-  select(month, dep_delay, wind_direction, wind_speed, wind_class, temp, visib)
+ewr_weather <- ewr_all_joined %>% 
+  ungroup() %>% 
+  select(month, dep_delay, wind_direction, wind_speed, wind_class, temp, visib, precip, dewp, humid)
  
 ```
 
@@ -803,11 +1319,28 @@ ewr_fit <- ewr_fit %>%
          visibility = if_else(visib >= 5, "good", "poor"))
 
 ewr_fit_dt <- ewr_fit %>% 
-  select(delayed, month, time_of_day, distance, wind_direction, wind_class, temp, visibility, wind_gust) %>% 
+  select(delayed, month, time_of_day, distance, wind_direction, wind_class, temp, visibility, wind_gust, precip) %>% 
   mutate(delayed = as.factor(delayed)) %>% 
   na.omit()
 ewr_fit_dt
 ```
+
+```{r}
+all_joined_imputed%>% 
+  group_by(hour, delayed) %>% 
+  summarise(mean_delays = mean(dep_delay)) %>% 
+  ggplot()+
+  geom_point(aes(x = hour, y = mean_delays, colour = delayed))
+```
+
+
+```{r}
+ewr_fit %>% 
+  select(time_of_day, distance, temp, wind_direction, wind_class, air_time) %>%
+  ggpairs()
+  
+```
+
 
 test train split set up
 
@@ -902,12 +1435,11 @@ ewr_fit %>%
 
 ```{r}
 ewr_trim <- ewr_fit %>% 
-  select(month, day, delayed, air_time, distance, hour, minute, temp, wind_direction, wind_speed, wind_class, wind_gust, visibility, year.y, type, manufacturer, model, engines, seats, engine, name.x, lat, lon, alt, tz) %>% 
+  select(month, day, delayed, air_time, distance, hour, temp, wind_direction, wind_speed, wind_class, wind_gust, visibility, year.y, type, manufacturer, model, engines, seats, engine, name.x, lat, lon, alt, tz) %>% 
   na.omit()
 
 
-ewr_trim %>% 
-  summary
+ewr_trim 
 ```
 
 
@@ -951,3 +1483,364 @@ rf_preds %>%
 confusionMatrix(rf_classifier$pred, rf_classifier$delayed)
 ```
 
+
+## Logistical regression
+
+BAsed on the delayed variable
+
+```{r}
+# set up the dataset
+
+all_joined_model <- all_joined_imputed %>% 
+  select(date, time, delayed, hour)
+```
+
+
+```{r}
+n_data <- nrow(all_joined_model)
+
+delay_index <- sample(1:n_data, size = n_data*0.2)
+
+delay_test <- slice(all_joined_model, test_index)
+
+delay_train <- slice(all_joined_model, -test_index)
+```
+
+```{r}
+delay_test %>% 
+  janitor::tabyl(delayed)
+```
+```{r}
+delay_train%>% 
+  janitor::tabyl(delayed)
+```
+
+
+```{r}
+delayed_1log_reg <- glm(delayed ~ hour, 
+                             data = delay_train,
+                             family = binomial(link = "logit"))
+
+delayed_1log_reg
+```
+
+
+```{r}
+test_1log_reg <- glm(delayed ~ hour,
+                     data = delay_test, 
+                     family = binomial(link = "logit"))
+```
+
+Interpretation
+
+ln(odds_delayed(x)) = b0 + b1 * x
+
+in this case:
+ln(odds_delayed(x)) = -2.1996 + (0.1242 * x)
+
+$$              
+\ln({odds_{delayed}(x))}=-2.1996 + (0.1242 * (x))
+
+$$
+
+```{r}
+# add predictions
+predict_log <- tibble(hour = seq(0, 24, 0.5)) %>% 
+  add_predictions(delayed_1log_reg, 
+                  type = "response")
+
+predict_log
+
+delay_train %>% 
+  ggplot(aes(x = hour, y = as.integer(delayed))) +
+  geom_jitter(position = position_jitter(h = 0.1), shape = 1)+
+  geom_line(data = predict_log,
+            aes(y = pred),
+            col = "red")+
+  labs(title = "Probability of Flight Delay Based on Hour",
+       y = "Probability",
+       x = "Hour")+
+  theme_classic()+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))+
+  scale_x_continuous(breaks=seq(0,24,2))
+```
+
+```{r}
+tidy_out <- clean_names(tidy(delayed_1log_reg))
+tidy_out
+```
+
+```{r}
+tidy_test <- clean_names(tidy(test_1log_reg))
+tidy_test
+```
+
+
+```{r}
+summary(delayed_1log_reg)
+```
+
+
+
+
+
+```{r}
+delay_train_with_1pred <- delay_train %>% 
+  add_predictions(delayed_1log_reg, type = "response")
+
+delay_train_1pred %>% 
+  ggplot(aes(x = hour, y = pred, colour = delayed))+
+  geom_line()
+```
+
+```{r}
+test_with_1pred <- delay_test %>% 
+  add_predictions(delayed_1log_reg, type = "response")
+
+test_with_1pred %>% 
+   ggplot(aes(x = hour, y = pred, colour = delayed))+
+  geom_line()
+```
+
+
+
+```{r}
+threshold <- 0.5
+delay_train_with_1pred <- delay_train_with_1pred %>%
+  mutate(pred_thresh_0.5 = pred >= threshold)
+
+head(delay_train_with_1pred, 10)
+```
+
+```{r}
+conf_table <- delay_train_with_1pred  %>%
+  tabyl(delayed, pred_thresh_0.5)
+
+conf_table
+```
+```{r}
+conf_table <- delay_train_with_1pred  %>%
+  tabyl(delayed, pred_thresh_0.6)
+
+conf_table
+```
+Neither threshold is particularly good!
+
+```{r}
+roc_obj_1pred <- delay_train_with_1pred %>% 
+  roc(response = delayed,
+      predictor = pred)
+
+auc(roc_obj_1pred)
+```
+```{r}
+roc_obj_test1pred <- test_with_1pred %>% 
+  roc(response = delayed,
+      predictor = pred)
+
+auc(roc_obj_test1pred)
+```
+
+
+
+
+
+
+```{r}
+roc_curve <- ggroc(data = list(
+  mod1 = roc_obj_1pred,
+  mod2 = roc_obj_test1pred),
+                   legacy.axes = TRUE)+
+  coord_fixed()+
+  labs(x = "FPR = 1 - TNR = 1 - specificity",
+          y = "TPR = sensitivity")
+
+roc_curve
+```
+
+## Cross validation on the model
+
+```{r}
+all_joined_model <- all_joined_model %>% 
+  mutate(delayed = as.factor(delayed),
+         hour = as.numeric(hour))
+
+flight_delayed_model <- glm(delayed ~ hour, 
+                            data = all_joined_model, 
+                            family = binomial(link = 'logit'))
+
+clean_names(tidy(flight_delayed_model))
+```
+p-values are very low, so far so good!
+
+```{r}
+flight_delayed_with_1pred <- all_joined_model %>% 
+  add_predictions(flight_delayed_model, type = "response")
+
+roc_obj_mod1 <- flight_delayed_with_1pred %>%
+  roc(response = delayed, predictor = pred)
+```
+```{r}
+roc_curve <- ggroc(
+  data = list(
+    mod1 = roc_obj_mod1
+  ), 
+  legacy.axes = TRUE) +
+  coord_fixed()
+roc_curve
+```
+
+```{r}
+auc(roc_obj_mod1)
+```
+
+train_control <- trainControl(method = "repeatedcv", 
+                              number = 5,
+                              repeats = 100,
+                              savePredictions = TRUE, 
+                              classProbs = TRUE, 
+                              summaryFunction = twoClassSummary)
+                              
+od1_1pred_monthly_charges_cv <- train(mod1_1pred_monthly_charges$formula,
+                                       data = telco_churn_facs,
+                                       trControl = train_control,
+                                       method = "glm",
+                                       family = binomial(link = 'logit'))
+
+```{r}
+flight_delayed_model
+```
+
+
+
+
+```{r}
+train_control <- trainControl(method = "repeatedcv",
+                              number = 5, 
+                              repeats = 100,
+                              savePredictions = TRUE,
+                              classProbs = TRUE,
+                              summaryFunction = twoClassSummary)
+
+flights_delay_mod_cv <- train(flight_delayed_model$formula,
+                          data = all_joined_model,
+                          trControl = train_control,
+                          method = "glm",
+                          family = binomial(link = "logit"))
+```
+```{r}
+NTP <- 30365
+NTN <- 124435
+NFP <- 25347
+NFN <- 58638
+
+TPR <- NTP / (NTP + NFN)
+TPR
+```
+
+```{r}
+TNR <- NTN / (NTN + NFP)
+TNR
+```
+
+
+
+
+Decision Tree on all
+
+```{r}
+ewr_fit_trim2 <- ewr_fit %>% 
+  ungroup() %>% 
+  select(month, delayed, air_time, distance, hour, temp, dewp, humid, wind_class, wind_direction, wind_gust, precip, pressure, year.y, type, manufacturer, engines, seats, engine, time_of_day) %>% 
+ mutate(delayed = as.factor(delayed)) %>% 
+  na.omit()
+
+```
+
+test train split set up
+
+```{r}
+n_data <- nrow(ewr_fit_trim2)
+
+test_index <- sample(1:n_data, size = n_data*0.2)
+
+ewr_test <- slice(ewr_fit_trim2, test_index)
+
+ewr_train <- slice(ewr_fit_trim2, -test_index)
+```
+
+```{r}
+ewr_test %>% 
+  janitor::tabyl(delayed)
+```
+
+
+
+```{r}
+ewr_train %>% 
+  janitor::tabyl(delayed)
+```
+
+```{r}
+ewr_fit_tree2 <- rpart(
+  formula = delayed ~.,
+  data = ewr_train,
+  method = "class"
+)
+
+rpart.plot(ewr_fit_tree2,
+           yesno = 2,
+           fallen.leaves = TRUE,
+           faclen = 6,
+           digits = 2, 
+           type = 4,
+           extra = 101)
+```
+
+```{r}
+rpart.rules(ewr_fit_tree2, cover = TRUE)
+```
+
+
+
+```{r}
+# add predictions to test the model
+ewr_test_pred <- ewr_test %>% 
+  add_predictions(ewr_fit_tree2, type = "class")
+```
+
+
+```{r}
+ewr_test_pred %>% 
+  select(time_of_day, month, delayed, pred)  
+```
+
+```{r}
+conf_mat <- ewr_test_pred %>% 
+  conf_mat(truth = delayed, estimate = pred)
+
+conf_mat
+```
+
+```{r}
+accuracy <- ewr_test_pred %>% 
+  accuracy(truth = delayed, estimate = pred)
+
+accuracy
+```
+
+```{r}
+ewr_test_pred %>% 
+  sensitivity(truth = delayed, estimate = pred)
+```
+
+```{r}
+ewr_test_pred %>% 
+  specificity(truth = delayed, estimate = pred)
+```
+
+```{r}
+confusionMatrix(ewr_test_pred$pred, ewr_test_pred$delayed)
+```
