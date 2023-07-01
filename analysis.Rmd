@@ -5,38 +5,8 @@ output: html_notebook
 
 # Flight Delays - Final project. 
 
-## Introduction and project brief. 
-
-Newark Airport belive that poor weather conditions are causing too many delays and want to invest in improving facilities, so that aircraft can take off in more types of weather. However, they do not fully understand how serious weather related delays are, and are not sure what type of weather they should be most concerned about. As part of investigating the effect of weather you should investigate other factors to understand how important weather is in comparison to them. They also want to understand how they compare to other New York airports.
-
-## Defining the Project. 
-
-From the project brief I identified 4 key questions that will be most important for providing actionable information that Newark Airport can develop. These questions are: 
-
-1. How does weather impact flight delays?
-2. How does Newark airport compare to other New York Airports
-3. Other factors for delays?
-4. Is it possible to build a model which can predict which flights will be delayed?
-
-
-
-## Planning
-
-I planned the project with these stages. 
-
-
-1. Data cleaning (detailed in a separate cleaning script)
-2. Data wrangling
-3. Initial explorations
-4. Analysis
-5. Model building
-6. Conclusions and insights for action
-7. Presentation
-8. Further work. 
-
-I roughly allocated a day for each of these tasks, with exception for Analysis section which will be extended to 2-3 days. 
-
-
+## 5. Analysis
+### Step 1: Flight delays - quantifying delays at Newark and other NY Airports
 
 ```{r}
 library(tidyverse)
@@ -51,7 +21,7 @@ library(pROC)
 library(broom)
 
 ```
-## Initial Data Exploration - quantifying delays at Newark and other NY Airports
+
 
 ```{r}
 flights_clean <- read_csv(here("clean_data/flight_clean.csv"))
@@ -79,6 +49,7 @@ flights_clean %>%
 ```
 
 ```{r}
+# calculate the proportions and numbers of delayed flights and by how much
 ewr_flights <- flights_clean %>% 
   filter(origin == "EWR") 
 
@@ -90,6 +61,7 @@ ewr_flights %>%
 
 
 ```{r}
+# compare flight delayed across each airport in New York
 flights_clean %>% 
   group_by(delay_dep, origin) %>% 
   summarise(count = n()) %>% 
@@ -108,33 +80,6 @@ flights_clean %>%
   theme(plot.title = element_text(size = 16, hjust = 0.2))
 ```
 
-
-## Flight delay by time of year/day
-
-Delay proportion by month to check for seasonal variation
-
-
-```{r}
-all_joined_imputed%>% 
-  filter(origin == "EWR") %>% 
-  group_by(month, delay_dep) %>% 
-  summarise(mean_delay = mean(dep_delay),
-            count = n())%>% 
-  ggplot()+
-  geom_col(aes(x = month, y = count, fill = factor(delay_dep, levels = c("> 1hr delay", "< 1hr delay","< 15 minutes delay",  "Early or on-time"))), position = "fill")+
-  theme_classic()+
-  labs(
-    x = "Month",
-    y = "Proportion of delayed flights",
-    title = "Proportion of Delayed Flights by Month from Newark",
-    fill = "Departure delay"
-  )+
-  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
-  theme(axis.text=element_text(size=14))+
-  theme(text = element_text(size = 16))+
-  theme(plot.title = element_text(size = 16, hjust = 0.2))+
-  scale_x_continuous(breaks=seq(1,12,1))
-```
 ## Data Wrangling
 
 Initial explorations of data showed a lot of missing weather data points. Decided to deal with these by imputing the mean from that day. Also, as the airports are in a similar location, if there were no data points for a whole day, then the means were taken from the other NY airports. 
@@ -146,22 +91,24 @@ all_joined <- read_csv("clean_data/all_joined.csv")
 
 
 ```{r}
+# impute missing weather data to include daily means
+
 all_joined_imputed <- all_joined %>% 
   group_by(date, origin) %>% 
   mutate(across(.cols = temp:wind_speed, .fns = ~if_else(is.na(.x), mean(.x, na.rm = TRUE), .x)),
          across(.cols = wind_gust:visib, .fns = ~if_else(is.na(.x), mean(.x, na.rm = TRUE), .x)))
 
-all_joined_imputed %>% 
-  summary
 ```
 
 ```{r}
+# impute data to include monthly means
 all_joined_imputed <- all_joined_imputed %>% 
   group_by(month, origin) %>% 
   mutate(temp = if_else(is.na(temp), mean(temp, na.rm = TRUE), temp))
 ```
 
 ```{r}
+# impute data to include monthly means
 all_joined_imputed <- all_joined_imputed %>% 
   group_by(month, origin) %>% 
   mutate(across(.cols = c(temp, precip, pressure, humid, dewp), .fns = ~if_else(is.na(.x), mean(.x, na.rm = TRUE), .x)))
@@ -169,6 +116,7 @@ all_joined_imputed <- all_joined_imputed %>%
 
 
 ```{r}
+# include wind_speed category
 all_joined_imputed <- all_joined_imputed %>% 
   mutate(wind_class = case_when(wind_speed <= 24 ~"Breeze",
                                 wind_speed <= 31 ~"Strong breeze",
@@ -180,6 +128,7 @@ all_joined_imputed <- all_joined_imputed %>%
 
 
 ```{r}
+# introduce a wind_direction category variable from wind_dir
 all_joined_imputed <- all_joined_imputed %>% 
   mutate(wind_direction = case_when(wind_dir <= 23 ~ "North",
                                     wind_dir <= 68 ~ "Northeast",
@@ -199,60 +148,11 @@ head(all_joined_imputed)
 
 ```
 
+### Step 2: Impact of weather on flight delays
 
-### Analysis 1: Flight delay by time of day
-
-```{r}
-all_joined_imputed%>% 
-  filter(origin == "EWR") %>% 
-  group_by(hour, delay_dep) %>% 
-  summarise(mean_delay = mean(dep_delay),
-            count = n())%>% 
-  ggplot()+
-  geom_col(aes(x = hour, y = count, fill = factor(delay_dep, levels = c("> 1hr delay", "< 1hr delay","< 15 minutes delay",  "Early or on-time"))), position = "fill")+
-  theme_classic()+
-  labs(
-    x = "Hour",
-    y = "Proportion of delayed flights",
-    title = "Flight Delay by Hour from Newark Airport",
-    fill = "Departure delay"
-  )+
-  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
-  theme(axis.text=element_text(size=14))+
-  theme(text = element_text(size = 16))+
-  theme(plot.title = element_text(size = 16, hjust = 1))
-  #scale_x_continuous(breaks=seq(1,12,1))
-```
-
-
-```{r}
-flights_clean %>% 
-  group_by(hour,origin) %>% 
-  summarise(mean_delay = mean(dep_delay)) %>% 
-  ggplot(aes(x = hour, y = mean_delay, colour = origin))+
-  geom_point()+
-  geom_line()+
-  theme_classic()+
-  labs(
-    x = "Hour",
-    y = "Average flight delay (minutes)",
-    title = "Average Flight Delay by Hour from New York Airports",
-    fill = "Airport"
-  )+
-  scale_colour_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
-  theme(axis.text=element_text(size=14))+
-  theme(text = element_text(size = 16))+
-  theme(plot.title = element_text(size = 16, hjust = 1))+
-  scale_x_continuous(breaks = seq(0, 24, 2))
-```
-
-
-## Analysis 3: Weather correlation to flight delay
-
-
-## Weather correlations with imputed data
 
 ```{r message=FALSE}
+# carry out correlation plots between weather types and delayed flights
 all_joined_imputed %>% 
   filter(origin == "EWR") %>% 
   ungroup() %>% 
@@ -262,6 +162,7 @@ all_joined_imputed %>%
 
 
 ```{r message=FALSE}
+# carry out correlation plots between weather types and length of flight delay
 all_joined_imputed %>% 
   filter(origin == "EWR") %>% 
   ungroup() %>% 
@@ -269,6 +170,7 @@ all_joined_imputed %>%
   ggpairs()
 ```
 ```{r message=FALSE}
+# carry out correlation plots between weather types and delayed flights
 all_joined_imputed %>% 
   ungroup() %>% 
   select(delayed, delay_dep, wind_class, wind_direction) %>% 
@@ -353,6 +255,7 @@ all_joined_imputed %>%
 
 
 ```{r}
+# comparison of impact of weather type on flight delays across all NY airports
 all_joined_imputed %>% 
   group_by(wind_direction, delayed, airport) %>% 
   summarise(mean = mean(wind_speed)) %>% 
@@ -375,6 +278,7 @@ all_joined_imputed %>%
 
 
 ```{r}
+# comparison of all weather types effect on flight delays at Newark airport
 avg_table <- all_joined_imputed %>% 
   filter(origin == "EWR") %>% 
   group_by(delayed) %>% 
@@ -403,17 +307,11 @@ avg_table_pivot %>%
   theme(plot.title = element_text(size = 16, hjust = 0.2))+
   scale_fill_manual(values = c("#2c7bb6","#fdae61", "#abd9e9",  "#d7191c" ))
 ```
-```{r}
-avg_table_pivot %>% 
-  ggplot(aes(x = mean, y = delayed))+
-  geom_boxplot()+
-  facet_grid(~weather)
-  
-```
 
 
 
 ```{r}
+# compare destribution of average wind speed on flight delay in different airports
 all_joined_imputed %>% 
   filter(delayed == TRUE) %>% 
   group_by(wind_speed, airport) %>% 
@@ -435,11 +333,10 @@ all_joined_imputed %>%
 ```
 
 
-### Analysis: other factors
-#### Airport location
-
+### Step 3: Airplot location
 
 ```{r}
+# create new table with airport information, flight delays, destance
 airport_table <- all_joined %>% 
   filter(origin == "EWR") %>% 
   group_by(name.y) %>% 
@@ -452,8 +349,12 @@ airport_table <- all_joined %>%
 ```
 
 
+
 ```{r}
-# add in additional information for latitude and long missing. Easier to do this in excel. 
+# add in additional information for latitude and long missing. Easier to do this in excel.
+
+airports <- read_csv(here("clean_data/airports.csv"))
+
 airport_table_latlong <- airport_table %>% 
   left_join(airports, by = c("name.y" ="name"))
 
@@ -468,6 +369,7 @@ airport_latlong_updated <- read_csv("clean_data/airport_table_latlong_updated.cs
 
 
 ```{r}
+# plot correlation between how busy an airport is and the proportion of delayed flights
 airport_latlong_updated %>% 
   ggplot(aes(x = count, y = prop_delayed))+
   geom_point(colour = "steelblue")+
@@ -484,6 +386,7 @@ airport_latlong_updated %>%
 
 
 ```{r}
+# add in category from quartiles for how good/bad the proportion of flight delays are. Also, create a colour palette for groups
 airport_latlong_updated <- airport_latlong_updated %>% 
   mutate(delay_class = case_when(prop_delayed <= 0.31 ~ "1",
                                  prop_delayed <= 0.3738 ~ "2",
@@ -498,8 +401,25 @@ size <- c()
 ```
 
 
+```{r}
+# categorise how busy an airport is. Include a reasonable size range for leaflet
+airport_latlong_updated <- airport_latlong_updated %>% 
+  mutate(count_group = case_when(count < 500 ~"<500",
+                                 count < 1000 ~ "<1000",
+                                 count < 2000 ~ "<2000",
+                                 count < 3000 ~ "<3000",
+                                 count < 4000 ~ "<4000",
+                                 count < 5000 ~ "<5000",
+                                 count < 6000 ~ "<6000",
+                                 count < 7000 ~ "<7000",
+                                 count > 7000 ~ ">7000"))
+
+airport_latlong_updated <- airport_latlong_updated %>% 
+  mutate(count_sqrt = sqrt(count)/3)
+```
 
 ```{r}
+# geospatial mapping of airport locations, flight delays and how busy the airports are
 airport_latlong_trim <- airport_latlong_updated %>% 
   mutate(across(c(count, delayed_flights, lat, lon), as.numeric)) %>% 
   filter(!is.na(lat)) %>% 
@@ -517,23 +437,9 @@ leaflet(airport_latlong_trim) %>%
             opacity = 1)
 ```
 
-```{r}
-airport_latlong_updated <- airport_latlong_updated %>% 
-  mutate(count_group = case_when(count < 500 ~"<500",
-                                 count < 1000 ~ "<1000",
-                                 count < 2000 ~ "<2000",
-                                 count < 3000 ~ "<3000",
-                                 count < 4000 ~ "<4000",
-                                 count < 5000 ~ "<5000",
-                                 count < 6000 ~ "<6000",
-                                 count < 7000 ~ "<7000",
-                                 count > 7000 ~ ">7000"))
-
-airport_latlong_updated <- airport_latlong_updated %>% 
-  mutate(count_sqrt = sqrt(count)/3)
-```
 
 ```{r}
+# correlate the number of delayed flights to how busy an airport is
 airport_latlong_updated %>% 
   ggplot(aes(x = count, y = delayed_flights))+
   geom_point()+
@@ -553,6 +459,7 @@ airport_latlong_updated %>%
 
 
 ```{r}
+# correlate the proportion of delayed flights to the distance to the destination
 all_joined_imputed %>% 
   filter(delayed == TRUE,
          origin == "EWR") %>% 
@@ -573,20 +480,21 @@ all_joined_imputed %>%
 
 ```
 
-### Analysis: other factors
-#### Airlines and aircraft data
+### Step 4: Aircraft and airline analysis
 
 ```{r}
 flights_weather_planes_airlines <- read_csv("clean_data/flights_weather_planes_airlines.csv")
 ```
 
 ```{r}
+# convert variables to integers for plots
 flights_weather_planes_airlines <- flights_weather_planes_airlines %>% 
   mutate(delayed = as.integer(delayed),
          delayed_1hr_more = as.integer(delayed_1hr_more))
 ```
 
 ```{r}
+# Remove extra string in text variables
 flights_weather_planes_airlines_regex <- flights_weather_planes_airlines %>% 
   mutate(name = str_remove(name, " Inc."),
          name = str_remove(name, " Co"))
@@ -594,6 +502,7 @@ flights_weather_planes_airlines_regex <- flights_weather_planes_airlines %>%
 
 
 ```{r}
+# plot percentage of flight delays for each airline
 flights_weather_planes_airlines_regex %>% 
   group_by(name) %>% 
   summarise(count = n(),
@@ -615,11 +524,12 @@ flights_weather_planes_airlines_regex %>%
   theme(plot.title = element_text(size = 20, hjust = -0.4))
 ```
 
-
+### Step 5: Time of year/day
 
 #### Correlation between departure delay and arrival delay
 
 ```{r}
+# correlation between departure time and arrival time for delayed flights. ie do delayed flights catch up time during journey. 
 flights_clean %>% 
   filter(delayed == "TRUE") %>% 
   drop_na(arr_delay) %>% 
@@ -629,31 +539,80 @@ flights_clean %>%
   geom_smooth()
 ```
 
+
 ```{r}
-flight_clean %>% 
-  drop_na(arr_delay) %>% 
-  drop_na(dep_delay) %>% 
-  summarise(r_all_flights = cor(dep_delay, arr_delay))
+# plot flight delays by month
+all_joined_imputed%>% 
+  filter(origin == "EWR") %>% 
+  group_by(month, delay_dep) %>% 
+  summarise(mean_delay = mean(dep_delay),
+            count = n())%>% 
+  ggplot()+
+  geom_col(aes(x = month, y = count, fill = factor(delay_dep, levels = c("> 1hr delay", "< 1hr delay","< 15 minutes delay",  "Early or on-time"))), position = "fill")+
+  theme_classic()+
+  labs(
+    x = "Month",
+    y = "Proportion of delayed flights",
+    title = "Proportion of Delayed Flights by Month from Newark",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 0.2))+
+  scale_x_continuous(breaks=seq(1,12,1))
+```
+
+
+```{r}
+# plot flight delays by time of the day
+all_joined_imputed%>% 
+  filter(origin == "EWR") %>% 
+  group_by(hour, delay_dep) %>% 
+  summarise(mean_delay = mean(dep_delay),
+            count = n())%>% 
+  ggplot()+
+  geom_col(aes(x = hour, y = count, fill = factor(delay_dep, levels = c("> 1hr delay", "< 1hr delay","< 15 minutes delay",  "Early or on-time"))), position = "fill")+
+  theme_classic()+
+  labs(
+    x = "Hour",
+    y = "Proportion of delayed flights",
+    title = "Flight Delay by Hour from Newark Airport",
+    fill = "Departure delay"
+  )+
+  scale_fill_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 1))
+  
 ```
 
 
 
-
 ```{r}
-flights_weather_planes_airlines %>% 
-  drop_na(arr_delay) %>% 
-  drop_na(dep_delay) %>% 
-  filter(delayed_1hr_more == 1) %>% 
-   ggplot(aes(x = dep_delay, y = arr_delay))+
+# compare flight delays by hour across all three New York airports
+flights_clean %>% 
+  group_by(hour,origin) %>% 
+  summarise(mean_delay = mean(dep_delay)) %>% 
+  ggplot(aes(x = hour, y = mean_delay, colour = origin))+
   geom_point()+
-  geom_smooth()
+  geom_line()+
+  theme_classic()+
+  labs(
+    x = "Hour",
+    y = "Average flight delay (minutes)",
+    title = "Average Flight Delay by Hour from New York Airports",
+    fill = "Airport"
+  )+
+  scale_colour_manual(values = c("#d7191c", "#fdae61", "#abd9e9", "#2c7bb6"))+
+  theme(axis.text=element_text(size=14))+
+  theme(text = element_text(size = 16))+
+  theme(plot.title = element_text(size = 16, hjust = 1))+
+  scale_x_continuous(breaks = seq(0, 24, 2))
 ```
 
-
-
-## Predictions for flight delays: Decision tree
-
-
+## 6. Model building
+### Predictions for flight delays using Decision tree
 
 ```{r}
 ewr_fit <- all_joined_imputed %>% 
@@ -700,6 +659,7 @@ ewr_train %>%
 ```
 
 ```{r}
+# fit data to tree
 ewr_fit_tree <- rpart(
   formula = delayed ~.,
   data = ewr_train,
@@ -729,11 +689,11 @@ ewr_test_pred <- ewr_test %>%
 
 ```{r}
 ewr_test_pred %>% 
-  
   select(time_of_day, month, delayed, pred)  
 ```
 
 ```{r}
+# confusion matrix to evaluate model
 conf_mat <- ewr_test_pred %>% 
   conf_mat(truth = delayed, estimate = pred)
 
@@ -753,7 +713,7 @@ confusionMatrix(ewr_test_pred$pred, ewr_test_pred$delayed)
 ```
 The conclusion from this decision tree is that it only takes in one variable (hour) as this is the only variable that means the defined threshold for convergence. This reinforces previous analysis that there is no difference in the delays in flights with different weather. 
 
-## Random Forest
+### Predictions for flight delays using Decision tree
 
 
 ```{r}
@@ -783,6 +743,7 @@ rf_classifier
 ```
 
 ```{r}
+# view varibles with importance value
 sort(importance(rf_classifier))
 ```
 
@@ -790,10 +751,9 @@ From this we see that hour, airtime, day, minute and year.y(ie year of plane) ar
 
 
 
+### Predictions for flight delays using logistical regression
 
-## Prediction of flight delay using logistical regression
-
-BAsed on the delayed variable (True/false) and single variable for hour. 
+Based on the delayed variable (True/false) and single variable for hour. 
 
 ```{r}
 # set up the dataset
@@ -894,7 +854,7 @@ summary(delayed_1log_reg)
 delay_train_with_1pred <- delay_train %>% 
   add_predictions(delayed_1log_reg, type = "response")
 
-delay_train_1pred %>% 
+delay_train_with_1pred %>% 
   ggplot(aes(x = hour, y = pred, colour = delayed))+
   geom_line()
 ```
@@ -929,8 +889,6 @@ auc(roc_obj_test1pred)
 
 
 
-
-
 ```{r}
 roc_curve <- ggroc(data = list(
   mod1 = roc_obj_1pred,
@@ -944,18 +902,6 @@ roc_curve
 ```
 The simple logistical model with a single predictor (hour of day) shows a better than guess AUC of 0.66. It could be improved by the addition of more predictors, however the p-values show that the variable is significant and can be used to determine the probability (and the odds) of a flight being delayed, based on a single predictor of hour of flight. 
 
-## Conclusions
 
-There was very little evidence of weather impacting at all on flight delays. Almost all of the weather variables showed little difference for delayed and on-time flights. This was confirmed using correlation plots and also with decision trees, which only picked out 'Hour' as a significant variable. 
-
-The largest effect on flight delays was seen with time of day. There was a relation between increasing hour of the day and increasing chance of flight being delayed, and for the delay also to increase in time. THere was an additional slight variation in flight delays with month, which could be due to a higher number of flights during the busy summer time, compared to Autumn. There is a potential to stagger flights during the day to mitigate the knock on effects of delays on later flights. 
-
-There was a big difference in percentage of flight delays with different airlines, South Western showed 45% flights delayed, American airlines 30% and Hawaiwan Airlines 20%. This could be investigated with the airline companies, as delays are costly. 
-
-## Future work
-
-It would be very interesting to investigate with the airlines the different types of planes, ages, engines, types which might be correlated to the delay times and might be a useful investment for companies. In addition, it would be useful to compare to the other airports further too, the limits of this project didn't allow. 
-
-Furthermore, the model could be improved by the addition of more variables, especially those with ranked importance from the random forest. This may result in an improved model, with better capability to predict future delays in flights from Newark Airport. 
 
 

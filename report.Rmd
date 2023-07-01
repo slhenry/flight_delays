@@ -1,0 +1,155 @@
+---
+title: "Flight Delays - Report"
+output: html_notebook
+---
+
+## Introduction and project brief. 
+
+Newark Airport belive that poor weather conditions are causing too many delays and want to invest in improving facilities, so that aircraft can take off in more types of weather. However, they do not fully understand how serious weather related delays are, and are not sure what type of weather they should be most concerned about. As part of investigating the effect of weather you should investigate other factors to understand how important weather is in comparison to them. They also want to understand how they compare to other New York airports.
+
+## Business intelligence and data-driven decision making
+
+From the project brief I identified 4 key questions that will be most important for providing actionable information that Newark Airport can develop. These questions are and the conclusions drawn from the analysis are as follows: 
+
+**1. How does weather impact flight delays?**
+My analysis show that there was no significant correlation between weather types and flight delays. I analysed each dataset by comparing records for both delayed and on-time flights and found no difference between them. Therefore, it would be practical for Newark Airport to focus investments into other areas of operations which may have a better effect on reducing flight delays. 
+
+**2. How does Newark airport compare to other New York Airports**
+There was a very similar rate of flight delays between Newark Airport and LaGuardia and JFK Airports. Each had around ~62% flights on-time/early, and 10% of flights were more than 1 hour delayed. 
+The impact of weather on flight delays was analysed for the other New York Airports and no impact on flight delays was found with weather. This reinforces our findings for Newark, and strengthens the case for not investing funds into mitigating effects of weather. 
+
+**3. Other factors for delays?**
+
+The variable which had the most impact on the likelihood of flight delay is the hour. Flights were significantly more likely to be delayed, and for a longer time throughout the day. This pattern was repeated in the other New York airports. There was some variation in the month, with flight delays being worse in the springtime and best in autumn, this could be due to the number of flights that are running during these months. 
+Some of the airlines had much worse delay times than others, with South Western Airlines showing 43% of flights as delayed. 
+Potential areas for Newark Airport to focus on would be staggering their flight times throughout the day, or increasing the time between flights to mitigate the knock on effects from flight delays earlier in the day. There could be further disucssions with airlines, to understand the reason for the variation in the delays between different carriers. 
+
+**4. Is it possible to build a model which can predict which flights will be delayed?**
+
+I used three modelling techniques on the data to attempt to predict which flights will be delayed. Initially I used decision tree which created branches using only the 'hour' variable. THis reinforced earlier findings that the only trend which impacted flight delays was the time of day. Decision tree modelling ranked the variables by importance to contributing to the model, with hour as the most important, but also including airtime, day of the month, minute and age of the plane. These could all be areas for Newark to focus on to reduce their rate of delayed flights. 
+
+
+## Domain knowledge and the business context
+Newark Liberty International Airport (formerly Newark Metropolitan Airport) is an international airport located about 4.5 miles (7.2 km) south of downtown Newark. It is a major gateway to Europe, South America, Asia, and Oceania and is the second-busiest airport in the New York airport system, behind John F. Kennedy International Airport but far ahead of LaGuardia Airport.
+
+During 2022, the airport served 43.4 million passengers, which made it the 29th-busiest airport by passenger traffic in the world. The busiest year to date was 2019 when it served 46.3 million passengers. Newark Airport serves 50 airline carriers and is the largest hub for United Airlines by available seat miles.
+
+The analysis based in this report will highlight the impact of weather on flights leaving on time and causing delays, but will also evaluate other factors such as destination airport location, comparison of airlines, and time of year/day on the rate of flight delays.
+
+## Data
+The data provided by Newark Airport contains a complete list of all flights during 2017, including the date, scheduled departure time, delay, arrival time, distance, air-time and flight number. Additional datasets contain hourly weather results for wind speed, wind gusts, visibility, dewpoint, humpidity, precipitation, temperature, and wind direction. There is also data about the aircraft, airline carriers and airport latitute and longitude. 
+
+**Details of each dataset is as follows**:
+
+1. flights.csv
+A complete list of all flights during 2017, comprising 303,748 rows and 19 variables, including year, month, day, hour, minute, scheduled time, departure time, departure delay, arrival time, arrival delay, carrier, tailnumber, flight number, origin, destination, air-time, time-hour (time-stamp). These variables are a mixture of character, numeric (continuous) and POSIX time-series. 
+There were some flights which did not include arrival times, and therefore these were dropped from the analysis as it was not possible to determine their on-time/delayed status.
+
+2. weather.csv
+Details the weather at Newark, LaGuardia and JFK Airports, by month, day, hour for wind speed, wind gusts, temperature, visibility, precipitation, wind direction, humidity and dewpoint. There are 26,201 rows and 15 columns, either numerical (continuous) and POSIX format date-time series. The dataset had quite a lot of missing data, in particular temperature, humidity, precipitation had two months with missing data. The records for wind speeds and direction were mostly complete, but had some missing information which was suplemented by imputing daily means. In some cases there was data available for the other airports, which was used to replace missing data as all three airports are located quite close together. 
+
+3. airports.csv
+Contains 1333 rows with 8 variables, detailing the FAA codes, airport names, latitude, longitude, altitude, timezone, difference from GMT, and daylight saving code. The data is mostly character and numeric, and although there are a few latitudes and longitudes that are missing, I found these easily online to complete the dataset. 
+
+4. planes.csv
+Containes 3,521 rows and 9 variables detailing the tailnumber, year made, type, manufacturer, model, engine type, number of engines, seat numbers and cruising speed. There was some missing data for the years and cruising speeds. The data is mostly character and numeric format
+
+5. airlines.csv
+This dataset has 2 variables for the airline code, and airline name, both are characters. There are no missing NAs in this dataset. 
+
+
+
+## Ethical issues in data sourcing and extraction
+The data was provided by Newark Airport and there were no ethical considerations regarding the sourcing and extracting of this data. There is nothing sensitive or confidential within these datasets. These analysis will be used improve operations within the Airport and there are no ethical implications of this. 
+
+## Stages of the project
+
+I addressed this project in the following stages
+1. Defining the business questions
+2. Planning
+3. Data cleaning (detailed in a separate cleaning script)
+4. Data wrangling
+5. Analysis
+6. Model building
+7. Conclusions and insights for action
+8. Further work. 
+
+
+## 1. Defining the Project. 
+
+From the project brief I identified 4 key questions that will be most important for providing actionable information that Newark Airport can develop. These questions are: 
+
+1. How does weather impact flight delays?
+2. How does Newark airport compare to other New York Airports
+3. Other factors for delays?
+4. Is it possible to build a model which can predict which flights will be delayed?
+
+
+## 2. Planning the project
+
+I planned to carry out the project in R for data cleaning, wrangling, analysis and modelling, with additional packages such as tidyverse, ggplot, leaflet and modelr. 
+My initial aim was to spend a day each on data cleaning/wrangling, inital data exploration, analysis of flight delays, and analysis of weather impacts. From this I decided that the next steps regarding how long to spend analysing other factor for flight delays, plus allow time to prepare a presentation. I knew that I would need a full day for the data modelling, but at the beginning I wasn't sure which model or variables would be needed. 
+
+## 3. Data cleaning 
+
+Any flight details without departure or arrival time were dropped from the data set. I also included a combined time and date column, to unite month/day and hour/minute variables. For the weather data I imputed daily means where there were missing data, or means from other airports if there was no data for that day. The script for this were contained in a separate R file and folder called "flight_delays_cleaning.R"
+
+## 4. Data wrangling
+The main task was to join all the datasets into a combined, cleaned and tidy format. I introduced a logical flight delay variable, and categories for length of flight delays, wind direction and wind speeds. This was completed after initial data explorations
+
+## 5. Analysis (contained in separate "analysis.Rmd" file with results, code and visualisations)
+
+### Step 1: Flight delays
+Initial explorations of the data set to quantify the rate of delays and how they compared across other New York Airports, and by how much flights were delays. This formed useful context for the project and why Newark wanted this analysis. Also considered the correlation between flight departure delay and arrival delay and if flights were able to make up time during their journey. 
+
+### Step 2: Impact of weather on flight delays
+Investigate the effect of different weather types and the correlation to delayed flights for Newark Airport. This was carried out using the binary delayed (T/F) variable and each of the 8 weather types. Comparisons for weather with the other New York airports was also carried out, to compare to Newark in case there was a significant difference in rates of flight delays with weather. 
+
+### Step 3: Airplot location
+Investigated the rate of flight delays compared to airport location, frequency of flights, distance and air-time. 
+
+### Step 4: Aircraft and airline analysis
+Analysis of how different rates of delays compared across variables such as age, manufacturer, type, size and engines for the aircraft, and also how flight delays compare with airlines
+
+### Step 5: Time of year/day
+Investigated the rates of flight delays by month and time of day. Also considered the correlation between flight departure delay and arrival delay and if flights were able to make up time during their journey. 
+
+The analysis described fall into these categories: 
+
+* Descriptive Analytics tells you what happened in the past.
+  - Initial exploration to quantify the rate and length of time delays for flights in 2017 from all three New York Airports. 
+  - Location of airport destination
+  - Aircraft and airline analysis
+  - Time of day/year
+
+* Diagnostic Analytics helps you understand why something happened in the past.
+  - Flight delays and correlation between departure and arrival delays
+  - Impact of weather on flight delays. 
+  - Location of airport destination
+  - Time of day and year
+
+* Predictive Analytics predicts what is most likely to happen in the future.
+  - Logistical regression model to predict how flight delays is most likely to be affected by the hour of travel. 
+
+* Prescriptive Analytics recommends actions you can take to affect those outcomes. 
+  - Logistical regression model highlights that probability of flight delays increases with hour, and this variable is the most impact on the flights being delayed. 
+  - Ramdom Forest analysis indicated that flight delays were most affected by hour of flight, but also found airtime, day of the month, minute and age of the plane also contributed to flight delays. Each of these areas would be key areas for Newark Airport to consider regarding improving their rate of delayed flights. 
+
+
+## 6. Model building
+
+A decision tree was created to predict flight delays from the weather and aircraft variables. Random Forest analysis indicated which variables contributed the most significanced to predicting whether flights would be delayed. Also, a Logistical model was created using hour as a single predictor. 
+
+## 7. Conclusions and insights for action
+
+There was very little evidence of weather impacting at all on flight delays. Almost all of the weather variables showed little difference for delayed and on-time flights. This was confirmed using correlation plots and also with decision trees, which only picked out 'Hour' as a significant variable. 
+
+The largest effect on flight delays was seen with time of day. There was a relation between increasing hour of the day and increasing chance of flight being delayed, and for the delay also to increase in time. THere was an additional slight variation in flight delays with month, which could be due to a higher number of flights during the busy summer time, compared to Autumn. There is a potential to stagger flights during the day to mitigate the knock on effects of delays on later flights. 
+
+There was a big difference in percentage of flight delays with different airlines, South Western showed 45% flights delayed, American airlines 30% and Hawaiwan Airlines 20%. This could be investigated with the airline companies, as delays are costly. 
+
+## 8. Further work
+
+It would be very interesting to investigate with the airlines the different types of planes, ages, engines, types which might be correlated to the delay times and might be a useful investment for companies. In addition, it would be useful to compare to the other airports further too, the limits of this project didn't allow. 
+
+Furthermore, the model could be improved by the addition of more variables, especially those with ranked importance from the random forest. This may result in an improved model, with better capability to predict future delays in flights from Newark Airport. 

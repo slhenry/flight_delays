@@ -134,6 +134,10 @@ flights_weather_planes_airlines <- flights_weather_planes %>%
 write_csv(flights_weather_planes_airlines, "clean_data/flights_weather_planes_airlines.csv", append = FALSE)
 
 # airports data
+# write airport data to clean data folder
+write_csv(airports, "clean_data/airports.csv", append = FALSE)
+
+
 # join airpots data to flights_weather_planes_airlines by dest == faa
 
 # several airports listed as NA because they are internation
@@ -152,3 +156,6 @@ all_joined <- all_joined %>%
                             TRUE ~ name.y))
 
 write.csv(all_joined, "clean_data/all_joined.csv", append = FALSE)
+
+
+   
